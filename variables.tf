@@ -178,9 +178,9 @@ variable "keys" {
       - "asymmetric_encryption": For asymmetric encrypt/decrypt operations
       - "asymmetric_signing": For digital signatures
     - algorithm: Cryptographic algorithm (required, depends on usage)
-      - For symmetric_encryption: "aes256_gcm"
-      - For asymmetric_encryption: "rsa2048_oaep_sha256", "rsa3072_oaep_sha256", "rsa4096_oaep_sha256"
-      - For asymmetric_signing: "rsa2048_pkcs1v15_sha256", "rsa3072_pkcs1v15_sha256", "rsa4096_pkcs1v15_sha256", "ec_p256_sha256", "ec_p384_sha384"
+      - For symmetric_encryption: "aes_256_gcm"
+      - For asymmetric_encryption: "rsa_oaep_2048_sha256", "rsa_oaep_3072_sha256", "rsa_oaep_4096_sha256"
+      - For asymmetric_signing: "rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256", "ec_p256_sha256", "ec_p384_sha384"
     - description: Human-readable description
     - tags: List of tags for categorization
     - unprotected: If true, allows key deletion (defaults to false - protected)
@@ -192,7 +192,7 @@ variable "keys" {
     algorithm       = string
     description     = optional(string)
     tags            = optional(list(string), [])
-    unprotected     = optional(bool, false)
+    unprotected     = optional(bool, true)
     rotation_period = optional(string)
   }))
   default = {}
@@ -207,9 +207,9 @@ variable "keys" {
   validation {
     condition = alltrue([
       for k, v in var.keys : (
-        (v.usage == "symmetric_encryption" && contains(["aes256_gcm"], v.algorithm)) ||
-        (v.usage == "asymmetric_encryption" && contains(["rsa2048_oaep_sha256", "rsa3072_oaep_sha256", "rsa4096_oaep_sha256"], v.algorithm)) ||
-        (v.usage == "asymmetric_signing" && contains(["rsa2048_pkcs1v15_sha256", "rsa3072_pkcs1v15_sha256", "rsa4096_pkcs1v15_sha256", "ec_p256_sha256", "ec_p384_sha384"], v.algorithm))
+        (v.usage == "symmetric_encryption" && contains(["aes_256_gcm"], v.algorithm)) ||
+        (v.usage == "asymmetric_encryption" && contains(["rsa_oaep_2048_sha256", "rsa_oaep_3072_sha256", "rsa_oaep_4096_sha256"], v.algorithm)) ||
+        (v.usage == "asymmetric_signing" && contains(["rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256", "ec_p256_sha256", "ec_p384_sha384"], v.algorithm))
       )
     ])
     error_message = "Algorithm must be valid for the specified usage type."

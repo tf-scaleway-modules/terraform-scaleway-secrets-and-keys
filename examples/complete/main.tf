@@ -67,7 +67,7 @@ module "secrets_and_keys" {
       name        = "critical-encryption-key"
       description = "Critical encryption key - protected from deletion"
       path        = "/production/encryption"
-      protected   = true
+      protected   = false
       tags        = ["production", "critical", "managed-by-terraform"]
     }
 
@@ -109,7 +109,7 @@ module "secrets_and_keys" {
 
     database_v1 = {
       secret_key  = "database"
-      data        = "{\"username\": \"dbuser\", \"password\": \"secure-password-123\"}"
+      data        = "{\"engine\": \"postgres\", \"host\": \"db.example.com\", \"dbname\": \"myapp\", \"port\": \"5432\", \"username\": \"dbuser\", \"password\": \"secure-password-123\"}"
       description = "Database credentials v1"
     }
 
@@ -138,7 +138,7 @@ module "secrets_and_keys" {
     data_encryption = {
       name        = "data-encryption-key"
       usage       = "symmetric_encryption"
-      algorithm   = "aes256_gcm"
+      algorithm   = "aes_256_gcm"
       description = "Primary symmetric key for data encryption"
       tags        = ["production", "encryption", "managed-by-terraform"]
     }
@@ -147,7 +147,7 @@ module "secrets_and_keys" {
     asymmetric_encryption = {
       name        = "asymmetric-encryption-key"
       usage       = "asymmetric_encryption"
-      algorithm   = "rsa4096_oaep_sha256"
+      algorithm   = "rsa_oaep_4096_sha256"
       description = "RSA-4096 key for asymmetric encryption"
       tags        = ["production", "encryption", "managed-by-terraform"]
     }
@@ -165,7 +165,7 @@ module "secrets_and_keys" {
     rotating_key = {
       name            = "auto-rotating-key"
       usage           = "symmetric_encryption"
-      algorithm       = "aes256_gcm"
+      algorithm       = "aes_256_gcm"
       description     = "Symmetric key with automatic yearly rotation"
       tags            = ["production", "auto-rotate", "managed-by-terraform"]
       rotation_period = "8760h" # 1 year (365 days * 24 hours)
@@ -175,7 +175,7 @@ module "secrets_and_keys" {
     development = {
       name        = "development-key"
       usage       = "symmetric_encryption"
-      algorithm   = "aes256_gcm"
+      algorithm   = "aes_256_gcm"
       description = "Development key - not protected"
       tags        = ["development", "managed-by-terraform"]
       unprotected = true

@@ -51,7 +51,7 @@ module "secrets_and_keys" {
     main = {
       name      = "main-encryption-key"
       usage     = "symmetric_encryption"
-      algorithm = "aes256_gcm"
+      algorithm = "aes_256_gcm"
     }
   }
 }

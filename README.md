@@ -67,7 +67,7 @@ module "secrets_and_keys" {
     main = {
       name      = "main-encryption-key"
       usage     = "symmetric_encryption"
-      algorithm = "aes256_gcm"
+      algorithm = "aes_256_gcm"
     }
   }
 }
@@ -135,14 +135,14 @@ keys = {
   data_encryption = {
     name      = "data-encryption-key"
     usage     = "symmetric_encryption"
-    algorithm = "aes256_gcm"
+    algorithm = "aes_256_gcm"
   }
 
   # Asymmetric encryption key (RSA-4096)
   asymmetric = {
     name      = "asymmetric-key"
     usage     = "asymmetric_encryption"
-    algorithm = "rsa4096_oaep_sha256"
+    algorithm = "rsa_oaep_4096_sha256"
   }
 
   # Signing key (ECDSA P-384)
@@ -156,7 +156,7 @@ keys = {
   rotating = {
     name            = "auto-rotating-key"
     usage           = "symmetric_encryption"
-    algorithm       = "aes256_gcm"
+    algorithm       = "aes_256_gcm"
     rotation_period = "8760h"  # 1 year
   }
 }
@@ -205,7 +205,7 @@ keys = {
 
 | Name | Version |
 |------|---------|
-| <a name="provider_scaleway"></a> [scaleway](#provider\_scaleway) | 2.65.1 |
+| <a name="provider_scaleway"></a> [scaleway](#provider\_scaleway) | ~> 2.64 |
 
 ## Modules
 
@@ -224,7 +224,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_keys"></a> [keys](#input\_keys) | Map of encryption keys to create in Scaleway Key Manager.<br/><br/>Keys are used for cryptographic operations like encryption, decryption,<br/>and digital signing.<br/><br/>Structure:<br/>- name: Key name (required)<br/>- usage: Key usage type (required)<br/>  - "symmetric\_encryption": For symmetric encrypt/decrypt operations<br/>  - "asymmetric\_encryption": For asymmetric encrypt/decrypt operations<br/>  - "asymmetric\_signing": For digital signatures<br/>- algorithm: Cryptographic algorithm (required, depends on usage)<br/>  - For symmetric\_encryption: "aes256\_gcm"<br/>  - For asymmetric\_encryption: "rsa2048\_oaep\_sha256", "rsa3072\_oaep\_sha256", "rsa4096\_oaep\_sha256"<br/>  - For asymmetric\_signing: "rsa2048\_pkcs1v15\_sha256", "rsa3072\_pkcs1v15\_sha256", "rsa4096\_pkcs1v15\_sha256", "ec\_p256\_sha256", "ec\_p384\_sha384"<br/>- description: Human-readable description<br/>- tags: List of tags for categorization<br/>- unprotected: If true, allows key deletion (defaults to false - protected)<br/>- rotation\_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year) | <pre>map(object({<br/>    name            = string<br/>    usage           = string<br/>    algorithm       = string<br/>    description     = optional(string)<br/>    tags            = optional(list(string), [])<br/>    unprotected     = optional(bool, false)<br/>    rotation_period = optional(string)<br/>  }))</pre> | `{}` | no |
+| <a name="input_keys"></a> [keys](#input\_keys) | Map of encryption keys to create in Scaleway Key Manager.<br/><br/>Keys are used for cryptographic operations like encryption, decryption,<br/>and digital signing.<br/><br/>Structure:<br/>- name: Key name (required)<br/>- usage: Key usage type (required)<br/>  - "symmetric\_encryption": For symmetric encrypt/decrypt operations<br/>  - "asymmetric\_encryption": For asymmetric encrypt/decrypt operations<br/>  - "asymmetric\_signing": For digital signatures<br/>- algorithm: Cryptographic algorithm (required, depends on usage)<br/>  - For symmetric\_encryption: "aes\_256\_gcm"<br/>  - For asymmetric\_encryption: "rsa\_oaep\_2048\_sha256", "rsa\_oaep\_3072\_sha256", "rsa\_oaep\_4096\_sha256"<br/>  - For asymmetric\_signing: "rsa\_pkcs1\_2048\_sha256", "rsa\_pkcs1\_3072\_sha256", "rsa\_pkcs1\_4096\_sha256", "ec\_p256\_sha256", "ec\_p384\_sha384"<br/>- description: Human-readable description<br/>- tags: List of tags for categorization<br/>- unprotected: If true, allows key deletion (defaults to false - protected)<br/>- rotation\_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year) | <pre>map(object({<br/>    name            = string<br/>    usage           = string<br/>    algorithm       = string<br/>    description     = optional(string)<br/>    tags            = optional(list(string), [])<br/>    unprotected     = optional(bool, true)<br/>    rotation_period = optional(string)<br/>  }))</pre> | `{}` | no |
 | <a name="input_organization_id"></a> [organization\_id](#input\_organization\_id) | Scaleway Organization ID.<br/><br/>The organization is the top-level entity in Scaleway's hierarchy.<br/>Find this in the Scaleway Console under Organization Settings.<br/><br/>Format: UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) | `string` | n/a | yes |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Scaleway Project name where resources will be created.<br/><br/>Projects provide logical isolation within an organization.<br/>The project ID will be automatically resolved from this name.<br/><br/>Naming rules:<br/>- Must start with a lowercase letter<br/>- Can contain lowercase letters, numbers, and hyphens<br/>- Must be 2-63 characters long | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | Scaleway region where resources will be created.<br/><br/>If not provided, defaults to the provider's region configuration.<br/><br/>Valid regions: fr-par, nl-ams, pl-waw | `string` | `null` | no |

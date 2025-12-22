@@ -77,4 +77,11 @@ resource "scaleway_key_manager_key" "this" {
       rotation_period = rotation_policy.value
     }
   }
+
+  # Ignore changes to computed attributes that cause drift
+  lifecycle {
+    ignore_changes = [
+      rotation_policy[0].next_rotation_at,
+    ]
+  }
 }

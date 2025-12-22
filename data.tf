@@ -9,14 +9,10 @@
 # Project Data Source
 # ------------------------------------------------------------------------------
 # Looks up the Scaleway project by name to get the project ID.
-# This is only used when project_name is provided.
-#
-# SSH keys and some other resources are project-scoped.
+# This allows users to reference projects by name instead of ID.
 # ==============================================================================
 
-data "scaleway_account_project" "project" {
-  count = var.project_name != null ? 1 : 0
-
+data "scaleway_account_project" "this" {
   name            = var.project_name
   organization_id = var.organization_id
 }

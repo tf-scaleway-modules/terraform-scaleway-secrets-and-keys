@@ -26,9 +26,9 @@ locals {
   # ------------------------------------------------------------------------------
   # Maps version keys to their revision numbers.
   # ==============================================================================
-  secret_version_revisions = {
-    for key, version in scaleway_secret_version.this : key => version.revision
-  }
+  # secret_version_revisions = {
+  #   for key, version in scaleway_secret_version.this : key => version.revision
+  # }
 
   # ==============================================================================
   # Key ID Mapping

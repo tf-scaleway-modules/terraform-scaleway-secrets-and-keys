@@ -1,10 +1,10 @@
 terraform {
-  required_version = ">= 1.10.7" // Open tofu 1.10.7
+  required_version = ">= 1.11.0" // OpenTofu 1.11+ (write-only arguments)
 
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.64"
+      version = "~> 2.86"
     }
   }
 }

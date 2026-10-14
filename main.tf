@@ -23,6 +23,9 @@ resource "scaleway_secret" "this" {
   region      = var.region
   project_id  = local.project_id
 
+  # Key from var.keys (by map key) or an existing Key Manager key ID
+  key_id = try(local.key_ids[each.value.key_id], each.value.key_id)
+
   dynamic "ephemeral_policy" {
     for_each = each.value.ephemeral_policy != null ? [each.value.ephemeral_policy] : []
 
@@ -45,10 +48,12 @@ resource "scaleway_secret" "this" {
 resource "scaleway_secret_version" "this" {
   for_each = var.secret_versions
 
-  secret_id   = scaleway_secret.this[each.value.secret_key].id
-  data        = each.value.data
-  description = each.value.description
-  region      = var.region
+  secret_id       = scaleway_secret.this[each.value.secret_key].id
+  data            = each.value.data
+  data_wo         = each.value.data_wo
+  data_wo_version = each.value.data_wo_version
+  description     = each.value.description
+  region          = var.region
 }
 
 # ==============================================================================
@@ -61,14 +66,15 @@ resource "scaleway_secret_version" "this" {
 resource "scaleway_key_manager_key" "this" {
   for_each = var.keys
 
-  name        = each.value.name
-  usage       = each.value.usage
-  algorithm   = each.value.algorithm
-  description = each.value.description
-  tags        = each.value.tags
-  unprotected = each.value.unprotected
-  region      = var.region
-  project_id  = local.project_id
+  name             = each.value.name
+  usage            = each.value.usage
+  algorithm        = each.value.algorithm
+  description      = each.value.description
+  tags             = each.value.tags
+  unprotected      = each.value.unprotected
+  protection_level = each.value.protection_level
+  region           = var.region
+  project_id       = local.project_id
 
   dynamic "rotation_policy" {
     for_each = each.value.rotation_period != null ? [each.value.rotation_period] : []

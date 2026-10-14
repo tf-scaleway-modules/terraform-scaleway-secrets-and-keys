@@ -84,6 +84,9 @@ variable "secrets" {
     - protected: If true, prevents deletion (defaults to false)
     - tags: List of tags for categorization
     - type: Secret type - "opaque" (default), "basic_credentials", or "database_credentials"
+    - key_id: Key Manager key encrypting the secret's versions - a key of the
+      'keys' variable or an existing key ID (default: Secret Manager internal key).
+      Changing it recreates the secret.
     - ephemeral_policy: Optional ephemeral configuration
       - ttl: Time-to-live in Go duration format (e.g., "24h", "168h")
       - expires_once_accessed: If true, expires after first access
@@ -96,6 +99,7 @@ variable "secrets" {
     protected   = optional(bool, false)
     tags        = optional(list(string), [])
     type        = optional(string, "opaque")
+    key_id      = optional(string)
     ephemeral_policy = optional(object({
       ttl                   = optional(string)
       expires_once_accessed = optional(bool, false)
@@ -143,19 +147,29 @@ variable "secret_versions" {
     Structure:
     - secret_key: Key referencing a secret in the 'secrets' variable
     - data: The secret data payload (sensitive)
+    - data_wo: Write-only alternative to data, never stored in state
+      (OpenTofu/Terraform >= 1.11). Set exactly one of data or data_wo.
+    - data_wo_version: Bump to create a new version from a new data_wo
     - description: Optional description of this version
   EOT
   type = map(object({
-    secret_key  = string
-    data        = string
-    description = optional(string)
+    secret_key      = string
+    data            = optional(string)
+    data_wo         = optional(string)
+    data_wo_version = optional(number)
+    description     = optional(string)
   }))
   default = {}
 
   validation {
-    condition = alltrue([
-      for k, v in var.secret_versions : length(v.data) <= 65536
-    ])
+    condition     = alltrue([for k, v in var.secret_versions : (v.data == null) != (v.data_wo == null)])
+    error_message = "Each secret version must set exactly one of data or data_wo."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.secret_versions : [for d in compact([v.data, v.data_wo]) : length(d) <= 65536]
+    ]))
     error_message = "Secret version data must not exceed 64 KiB (65536 bytes)."
   }
 }
@@ -185,17 +199,25 @@ variable "keys" {
     - tags: List of tags for categorization
     - unprotected: If true, allows key deletion (defaults to false - protected)
     - rotation_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year)
+    - protection_level: "software" (default) or "hsm" (dedicated Hardware Security Module).
+      Immutable: changing it recreates the key.
   EOT
   type = map(object({
-    name            = string
-    usage           = string
-    algorithm       = string
-    description     = optional(string)
-    tags            = optional(list(string), [])
-    unprotected     = optional(bool, true)
-    rotation_period = optional(string)
+    name             = string
+    usage            = string
+    algorithm        = string
+    description      = optional(string)
+    tags             = optional(list(string), [])
+    unprotected      = optional(bool, true)
+    rotation_period  = optional(string)
+    protection_level = optional(string)
   }))
   default = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.keys : v.protection_level == null || contains(["software", "hsm"], v.protection_level)])
+    error_message = "Key protection_level must be 'software' or 'hsm'."
+  }
 
   validation {
     condition = alltrue([

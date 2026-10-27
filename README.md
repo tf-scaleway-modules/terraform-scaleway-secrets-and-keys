@@ -289,6 +289,8 @@ pre-commit install --install-hooks
 
 ### Development Workflow
 
+Changes are planned with [OpenSpec](https://github.com/Fission-AI/OpenSpec): `openspec/specs/` is the module's current contract and [AGENTS.md](AGENTS.md) routes to the engineering standards. Behaviour changes, new inputs, outputs or resources go through a change proposal (`/openspec-propose`) before any code. Run `mise run spec-setup` once per machine to register the standards stores.
+
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
@@ -296,6 +298,7 @@ pre-commit install --install-hooks
    ```bash
    tofu fmt -recursive
    tofu validate
+   mise run spec-validate
    ```
 5. Pre-commit hooks will automatically run on commit:
    - `tofu fmt` - Format Terraform/OpenTofu files

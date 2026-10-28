@@ -75,6 +75,6 @@ in your summary.
 
 ## Commands
 - Format / validate: `tofu fmt -recursive`, `tofu init -backend=false && tofu validate`, `tflint --recursive`
-- Tests: `tofu test` (once `tests/` exists; there are none yet)
+- Tests: `tofu test` (unit tests in `tests/main.tftest.hcl`, mock provider, no account)
 - Everything incl. README regeneration: `pre-commit run -a`; changelog: `mise run changelog`
 - Specs: `mise run spec-validate`; standards stores: `mise run spec-setup`

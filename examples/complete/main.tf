@@ -29,6 +29,12 @@ variable "region" {
   default     = "fr-par"
 }
 
+variable "db_password" {
+  description = "Database password, sent through the write-only data_wo argument (never stored in state)"
+  type        = string
+  sensitive   = true
+}
+
 # ==============================================================================
 # Module Usage
 # ==============================================================================
@@ -113,6 +119,13 @@ module "secrets_and_keys" {
       description = "Database credentials v1"
     }
 
+    database_password_v1 = {
+      secret_key      = "database"
+      data_wo         = var.db_password
+      data_wo_version = 1 # bump to push a new value
+      description     = "Database password, write-only"
+    }
+
     critical_key_v1 = {
       secret_key  = "critical_key"
       data        = "base64-encoded-encryption-key"
@@ -141,6 +154,7 @@ module "secrets_and_keys" {
       algorithm   = "aes_256_gcm"
       description = "Primary symmetric key for data encryption"
       tags        = ["production", "encryption", "managed-by-terraform"]
+      unprotected = false
     }
 
     # RSA key for asymmetric encryption
@@ -150,6 +164,7 @@ module "secrets_and_keys" {
       algorithm   = "rsa_oaep_4096_sha256"
       description = "RSA-4096 key for asymmetric encryption"
       tags        = ["production", "encryption", "managed-by-terraform"]
+      unprotected = false
     }
 
     # Signing key for digital signatures
@@ -159,6 +174,7 @@ module "secrets_and_keys" {
       algorithm   = "ec_p384_sha384"
       description = "ECDSA P-384 key for document signing"
       tags        = ["production", "signing", "managed-by-terraform"]
+      unprotected = false
     }
 
     # Key with automatic rotation (rotates yearly)
@@ -169,6 +185,7 @@ module "secrets_and_keys" {
       description     = "Symmetric key with automatic yearly rotation"
       tags            = ["production", "auto-rotate", "managed-by-terraform"]
       rotation_period = "8760h" # 1 year (365 days * 24 hours)
+      unprotected     = false
     }
 
     # Unprotected key (can be deleted)

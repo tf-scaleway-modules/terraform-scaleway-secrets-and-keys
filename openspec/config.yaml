@@ -37,9 +37,8 @@ context: |
   Layout: one .tf file per theme: main.tf (scaleway_secret,
   scaleway_secret_version, scaleway_key_manager_key, all `for_each` over
   maps), variables.tf, outputs.tf, locals.tf (project and ID maps), data.tf
-  (scaleway_account_project lookup). There is no checks.tf. There is no tests/
-  directory yet; new behaviour adds tests/main.tftest.hcl (run with `tofu
-  test`). Examples live in examples/minimal and examples/complete.
+  (scaleway_account_project lookup). checks.tf holds the plan-time check warnings. Unit tests live in
+  tests/main.tftest.hcl (mock provider, run with `tofu test`). Examples live in examples/minimal and examples/complete.
 
   Module-specific conventions (the generic ones are standards in the
   quality, repository and terraform stores, fetched on demand): secret payloads
@@ -50,7 +49,7 @@ context: |
   CHANGELOG line and the file is never edited by hand; semver applies.
 
   Commands: tofu fmt -recursive; tofu init -backend=false && tofu validate;
-  tflint --recursive; tofu test (only once tests/ exists); pre-commit run -a;
+  tflint --recursive; tofu test (unit tests in tests/main.tftest.hcl, mock provider, no account); pre-commit run -a;
   mise run changelog; mise run spec-validate; mise run spec-setup.
 
   Standards: fetch the referenced-store specs listed in these instructions
@@ -68,7 +67,7 @@ rules:
     - Explain how the change avoids a perpetual diff and how existing state migrates (moved blocks, in-place update or forced replacement)
     - Keep provider {} and backend {} out of the module and never shell out to a CLI
   tasks:
-    - Include unit tests in tests/main.tftest.hcl (the directory does not exist yet; the first behaviour change creates it) and examples/complete plus any example the change affects
+    - Include unit tests in tests/main.tftest.hcl (a rejected-input run per new validation, a run per check), and examples/complete plus any example the change affects
     - Include tofu fmt -recursive, tofu validate, tflint --recursive, tofu test and pre-commit run -a (terraform-docs README regeneration)
     - Include a commit subject that reads as the CHANGELOG.md line (git-cliff generates the file; do not edit it by hand), upgrade notes in the commit body for anything breaking, and README updates when the compatibility matrix or the what-lands-in-state table changes
     - Reuse the existing capability directories under openspec/specs (module-contract, secrets, secret-versions, encryption-keys) instead of creating near-duplicates
@@ -77,7 +76,7 @@ operations:
   apply:
     guidance:
       - Apply the quality store (simplicity, efficiency, security, production-readiness) to every task; fetch terraform-code-style, terraform-variables and terraform-outputs from the terraform store before editing HCL; flag any deviation with a DEVIATION(<spec-id>) comment
-      - Run tofu fmt -recursive, tofu validate and tofu test (once tests/ exists) after each task group and do not mark a task done while they fail
+      - Run tofu fmt -recursive, tofu validate and tofu test after each task group and do not mark a task done while they fail
       - Never run tofu apply against a real Scaleway project unless the user asked; say explicitly when it was skipped
       - Report test and scanner output as-is, including failures
   archive:

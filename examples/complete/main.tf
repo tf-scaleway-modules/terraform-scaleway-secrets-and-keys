@@ -68,6 +68,15 @@ module "secrets_and_keys" {
       type        = "database_credentials"
     }
 
+    # SSH private key stored with its dedicated type
+    deploy_ssh_key = {
+      name        = "production-deploy-ssh-key"
+      description = "SSH key used by deployments"
+      path        = "/production/ssh"
+      tags        = ["production", "ssh", "managed-by-terraform"]
+      type        = "ssh_key"
+    }
+
     # Protected secret that cannot be accidentally deleted
     critical_key = {
       name        = "critical-encryption-key"
@@ -174,6 +183,26 @@ module "secrets_and_keys" {
       algorithm   = "ec_p384_sha384"
       description = "ECDSA P-384 key for document signing"
       tags        = ["production", "signing", "managed-by-terraform"]
+      unprotected = false
+    }
+
+    # Post-quantum signing key (ML-DSA)
+    pq_signing = {
+      name        = "post-quantum-signing-key"
+      usage       = "asymmetric_signing"
+      algorithm   = "ml_dsa_65"
+      description = "ML-DSA-65 key for post-quantum signatures"
+      tags        = ["production", "signing", "managed-by-terraform"]
+      unprotected = false
+    }
+
+    # Post-quantum key encapsulation key (ML-KEM)
+    key_encapsulation = {
+      name        = "key-encapsulation-key"
+      usage       = "key_encapsulation"
+      algorithm   = "ml_kem_768"
+      description = "ML-KEM-768 key for post-quantum key encapsulation"
+      tags        = ["production", "encryption", "managed-by-terraform"]
       unprotected = false
     }
 

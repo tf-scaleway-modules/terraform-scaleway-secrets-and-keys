@@ -43,15 +43,15 @@ The module MUST reject a `usage` other than `symmetric_encryption`, `asymmetric_
 - **THEN** the plan fails with "Key protection_level must be 'software' or 'hsm'."
 
 ### Requirement: Deletion protection flag
-The module SHALL pass `unprotected` to the key; its module default is `true` (the key can be deleted). The `keys` output SHALL expose the provider's `protected` attribute.
+The module SHALL pass `unprotected` to the key; its module default is `true` (the key can be deleted), documented as such in the variable description. The `keys` output SHALL expose the provider's `protected` attribute. The module SHALL emit a `check` warning naming every key whose `unprotected` is `true`, set or defaulted.
 
 #### Scenario: Default
 - **WHEN** `unprotected` is not set
-- **THEN** the key is planned with `unprotected = true`
+- **THEN** the key is planned with `unprotected = true` and a check warning names it
 
 #### Scenario: Protected key
 - **WHEN** `unprotected = false`
-- **THEN** the key is planned with `unprotected = false`
+- **THEN** the key is planned with `unprotected = false` and no check warning is emitted for it
 
 ### Requirement: Rotation policy
 When `rotation_period` is set the module SHALL add one `rotation_policy` block with that period; when it is `null` no block SHALL be added. Changes to `rotation_policy[0].next_rotation_at` SHALL be ignored.

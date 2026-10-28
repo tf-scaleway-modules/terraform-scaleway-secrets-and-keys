@@ -39,12 +39,13 @@ variable "project_name" {
     Naming rules:
     - Must start with a lowercase letter
     - Can contain lowercase letters, numbers, and hyphens
-    - Must be 2-63 characters long
+    - Must end with a lowercase letter or number
+    - Must be 1-63 characters long
   EOT
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{0,61}[a-z0-9]$", var.project_name)) || length(var.project_name) == 1
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$", var.project_name))
     error_message = "Project name must be lowercase alphanumeric with hyphens, start with a letter, and be 1-63 characters."
   }
 }
@@ -141,15 +142,18 @@ variable "secret_versions" {
     Each version is linked to a secret defined in the 'secrets' variable.
     The 'data' field contains the actual secret value.
 
-    SECURITY: The data field is marked as sensitive and will not appear in logs.
-    Maximum data size is 64 KiB.
+    SECURITY: 'data' is stored in the state (the provider only redacts it in
+    CLI output); this variable cannot be marked sensitive because it is
+    iterated. Prefer 'data_wo', which never reaches the state.
+    Maximum data size is 64 KiB (bytes).
 
     Structure:
-    - secret_key: Key referencing a secret in the 'secrets' variable
-    - data: The secret data payload (sensitive)
+    - secret_key: Key referencing a secret in the 'secrets' variable (required)
+    - data: The secret data payload (stored in state)
     - data_wo: Write-only alternative to data, never stored in state
       (OpenTofu/Terraform >= 1.11). Set exactly one of data or data_wo.
-    - data_wo_version: Bump to create a new version from a new data_wo
+    - data_wo_version: Whole number; set it with data_wo and bump it to create
+      a new version from a new data_wo (a check warns when it is missing)
     - description: Optional description of this version
   EOT
   type = map(object({
@@ -167,10 +171,22 @@ variable "secret_versions" {
   }
 
   validation {
+    condition     = alltrue([for k, v in var.secret_versions : contains(keys(var.secrets), v.secret_key)])
+    error_message = "Each secret version secret_key must be a key of the secrets variable."
+  }
+
+  # Bytes, not characters: base64 encodes the UTF-8 bytes and its unpadded
+  # length is ceil(4n/3), i.e. 87382 for 65536 bytes and 87383 for 65537.
+  validation {
     condition = alltrue(flatten([
-      for k, v in var.secret_versions : [for d in compact([v.data, v.data_wo]) : length(d) <= 65536]
+      for k, v in var.secret_versions : [for d in compact([v.data, v.data_wo]) : length(replace(base64encode(d), "=", "")) <= 87382]
     ]))
     error_message = "Secret version data must not exceed 64 KiB (65536 bytes)."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.secret_versions : v.data_wo_version == null || try(v.data_wo_version == floor(v.data_wo_version), false)])
+    error_message = "Secret version data_wo_version must be a whole number."
   }
 }
 
@@ -197,7 +213,8 @@ variable "keys" {
       - For asymmetric_signing: "rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256", "ec_p256_sha256", "ec_p384_sha384"
     - description: Human-readable description
     - tags: List of tags for categorization
-    - unprotected: If true, allows key deletion (defaults to false - protected)
+    - unprotected: If true, allows key deletion (defaults to true - NOT protected;
+      set false to protect the key, a check warns for every deletable key)
     - rotation_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year)
     - protection_level: "software" (default) or "hsm" (dedicated Hardware Security Module).
       Immutable: changing it recreates the key.

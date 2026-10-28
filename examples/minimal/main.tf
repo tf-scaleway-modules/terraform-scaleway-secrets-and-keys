@@ -49,9 +49,10 @@ module "secrets_and_keys" {
   # Create an encryption key
   keys = {
     main = {
-      name      = "main-encryption-key"
-      usage     = "symmetric_encryption"
-      algorithm = "aes_256_gcm"
+      name        = "main-encryption-key"
+      usage       = "symmetric_encryption"
+      algorithm   = "aes_256_gcm"
+      unprotected = false
     }
   }
 }

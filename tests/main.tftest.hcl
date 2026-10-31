@@ -110,10 +110,31 @@ run "secret_type_rejected" {
   command = plan
 
   variables {
-    secrets = { db = { name = "db", type = "certificate" } }
+    secrets = { db = { name = "db", type = "password" } }
   }
 
   expect_failures = [var.secrets]
+}
+
+run "secret_types_accepted" {
+  command = plan
+
+  variables {
+    secrets = {
+      cert = { name = "cert", type = "certificate" }
+      kv   = { name = "kv", type = "key_value" }
+      ssh  = { name = "ssh", type = "ssh_key" }
+    }
+  }
+
+  assert {
+    condition = (
+      scaleway_secret.this["cert"].type == "certificate" &&
+      scaleway_secret.this["kv"].type == "key_value" &&
+      scaleway_secret.this["ssh"].type == "ssh_key"
+    )
+    error_message = "certificate, key_value and ssh_key secret types must be planned as given."
+  }
 }
 
 run "secret_version_unknown_secret_key_rejected" {
@@ -220,6 +241,94 @@ run "key_algorithm_rejected" {
   }
 
   expect_failures = [var.keys]
+}
+
+run "key_encapsulation_key_accepted" {
+  command = plan
+
+  variables {
+    keys = {
+      kem768  = { name = "kem768", usage = "key_encapsulation", algorithm = "ml_kem_768", unprotected = false }
+      kem1024 = { name = "kem1024", usage = "key_encapsulation", algorithm = "ml_kem_1024", unprotected = false }
+    }
+  }
+
+  assert {
+    condition = (
+      scaleway_key_manager_key.this["kem768"].usage == "key_encapsulation" &&
+      scaleway_key_manager_key.this["kem768"].algorithm == "ml_kem_768" &&
+      scaleway_key_manager_key.this["kem1024"].usage == "key_encapsulation" &&
+      scaleway_key_manager_key.this["kem1024"].algorithm == "ml_kem_1024"
+    )
+    error_message = "key_encapsulation keys must be planned with the given usage and algorithm."
+  }
+}
+
+run "key_new_signing_algorithms_accepted" {
+  command = plan
+
+  variables {
+    keys = {
+      mldsa = { name = "mldsa", usage = "asymmetric_signing", algorithm = "ml_dsa_65", unprotected = false }
+      pss   = { name = "pss", usage = "asymmetric_signing", algorithm = "rsa_pss_4096_sha256", unprotected = false }
+      k1    = { name = "k1", usage = "asymmetric_signing", algorithm = "ec_secp256k1_sha256", unprotected = false }
+    }
+  }
+
+  assert {
+    condition = (
+      scaleway_key_manager_key.this["mldsa"].algorithm == "ml_dsa_65" &&
+      scaleway_key_manager_key.this["pss"].algorithm == "rsa_pss_4096_sha256" &&
+      scaleway_key_manager_key.this["k1"].algorithm == "ec_secp256k1_sha256"
+    )
+    error_message = "The new signing algorithms must be planned as given."
+  }
+}
+
+run "key_encapsulation_with_symmetric_algorithm_rejected" {
+  command = plan
+
+  variables {
+    keys = { main = { name = "main", usage = "key_encapsulation", algorithm = "aes_256_gcm", unprotected = false } }
+  }
+
+  expect_failures = [var.keys]
+}
+
+run "key_ml_kem_on_signing_rejected" {
+  command = plan
+
+  variables {
+    keys = { main = { name = "main", usage = "asymmetric_signing", algorithm = "ml_kem_768", unprotected = false } }
+  }
+
+  expect_failures = [var.keys]
+}
+
+# Computed values are unknown at plan time, so this run applies against the mock provider only.
+run "srn_outputs_exposed" {
+  command = apply
+
+  variables {
+    secrets = {
+      db = { name = "db-password" }
+    }
+    secret_versions = {
+      v1 = { secret_key = "db", data_wo = "s3cret", data_wo_version = 1 }
+    }
+    keys = {
+      main = { name = "main", usage = "symmetric_encryption", algorithm = "aes_256_gcm", unprotected = false }
+    }
+  }
+
+  assert {
+    condition = (
+      length(output.secrets["db"].srn) > 0 &&
+      length(output.secret_versions["v1"].srn) > 0 &&
+      length(output.keys["main"].srn) > 0
+    )
+    error_message = "srn must be exposed for the secret, the version and the key."
+  }
 }
 
 run "key_protection_level_rejected" {

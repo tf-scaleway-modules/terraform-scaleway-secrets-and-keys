@@ -31,7 +31,7 @@ context: |
   pin it with `?ref=vX.Y.Z`. License: Apache-2.0.
 
   Stack: HCL only. required_version >= 1.11.0 (write-only arguments). Providers
-  pinned with ~> in versions.tf: scaleway/scaleway ~> 2.86. Every tool is pinned
+  pinned with ~> in versions.tf: scaleway/scaleway ~> 2.89. Every tool is pinned
   in mise.toml.
 
   Layout: one .tf file per theme: main.tf (scaleway_secret,

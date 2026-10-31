@@ -31,8 +31,10 @@ The checkable form of each line is the `quality` store (`quality-simplicity`,
 - Never edit the README between `BEGIN_TF_DOCS` / `END_TF_DOCS`; terraform-docs owns it.
 
 ## Module-specific
-- Secret version payloads: exactly one of `data` (lands in state) or `data_wo`
-  (write-only, bump `data_wo_version` to create a new version); each at most 64 KiB.
+- Secret version payloads: only through the ephemeral, sensitive `secret_data` map (same keys
+  as `secret_versions`) sent as write-only `data_wo`; bump `data_wo_version` to create a new
+  version; each at most 64 KiB. No `data` path, nothing in state.
+- Project: optional `project_id` (null = provider default); no project lookup.
 - `required_version >= 1.11.0` because of write-only arguments; scaleway provider `~> 2.89`.
 - Capabilities under `openspec/specs/`: `module-contract`, `secrets`, `secret-versions`,
   `encryption-keys`.

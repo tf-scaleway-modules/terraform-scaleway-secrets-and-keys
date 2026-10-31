@@ -33,7 +33,7 @@ The checkable form of each line is the `quality` store (`quality-simplicity`,
 ## Module-specific
 - Secret version payloads: exactly one of `data` (lands in state) or `data_wo`
   (write-only, bump `data_wo_version` to create a new version); each at most 64 KiB.
-- `required_version >= 1.11.0` because of write-only arguments; scaleway provider `~> 2.86`.
+- `required_version >= 1.11.0` because of write-only arguments; scaleway provider `~> 2.89`.
 - Capabilities under `openspec/specs/`: `module-contract`, `secrets`, `secret-versions`,
   `encryption-keys`.
 

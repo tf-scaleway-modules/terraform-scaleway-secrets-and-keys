@@ -84,7 +84,8 @@ variable "secrets" {
     - path: Path hierarchy (defaults to "/")
     - protected: If true, prevents deletion (defaults to false)
     - tags: List of tags for categorization
-    - type: Secret type - "opaque" (default), "basic_credentials", or "database_credentials"
+    - type: Secret type - "opaque" (default), "certificate", "key_value",
+      "basic_credentials", "database_credentials" or "ssh_key"
     - key_id: Key Manager key encrypting the secret's versions - a key of the
       'keys' variable or an existing key ID (default: Secret Manager internal key).
       Changing it recreates the secret.
@@ -118,9 +119,9 @@ variable "secrets" {
 
   validation {
     condition = alltrue([
-      for k, v in var.secrets : contains(["opaque", "basic_credentials", "database_credentials"], v.type)
+      for k, v in var.secrets : contains(["opaque", "certificate", "key_value", "basic_credentials", "database_credentials", "ssh_key"], v.type)
     ])
-    error_message = "Secret type must be one of: opaque, basic_credentials, database_credentials."
+    error_message = "Secret type must be one of: opaque, certificate, key_value, basic_credentials, database_credentials, ssh_key."
   }
 
   validation {
@@ -207,10 +208,18 @@ variable "keys" {
       - "symmetric_encryption": For symmetric encrypt/decrypt operations
       - "asymmetric_encryption": For asymmetric encrypt/decrypt operations
       - "asymmetric_signing": For digital signatures
+      - "key_encapsulation": For key encapsulation (post-quantum ML-KEM)
     - algorithm: Cryptographic algorithm (required, depends on usage)
       - For symmetric_encryption: "aes_256_gcm"
       - For asymmetric_encryption: "rsa_oaep_2048_sha256", "rsa_oaep_3072_sha256", "rsa_oaep_4096_sha256"
-      - For asymmetric_signing: "rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256", "ec_p256_sha256", "ec_p384_sha384"
+      - For asymmetric_signing: "ec_p256_sha256", "ec_p384_sha384", "ec_secp256k1_sha256",
+        "rsa_pss_2048_sha256", "rsa_pss_3072_sha256", "rsa_pss_4096_sha256",
+        "rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256",
+        "ml_dsa_44", "ml_dsa_65", "ml_dsa_87"
+      - For key_encapsulation: "ml_kem_768", "ml_kem_1024"
+      ML-KEM and ML-DSA are post-quantum algorithms. Whether the API offers an
+      algorithm for a region or protection level is decided by the API, not
+      validated here.
     - description: Human-readable description
     - tags: List of tags for categorization
     - unprotected: If true, allows key deletion (defaults to true - NOT protected;
@@ -238,18 +247,24 @@ variable "keys" {
 
   validation {
     condition = alltrue([
-      for k, v in var.keys : contains(["symmetric_encryption", "asymmetric_encryption", "asymmetric_signing"], v.usage)
+      for k, v in var.keys : contains(["symmetric_encryption", "asymmetric_encryption", "asymmetric_signing", "key_encapsulation"], v.usage)
     ])
-    error_message = "Key usage must be one of: symmetric_encryption, asymmetric_encryption, asymmetric_signing."
+    error_message = "Key usage must be one of: symmetric_encryption, asymmetric_encryption, asymmetric_signing, key_encapsulation."
   }
 
   validation {
     condition = alltrue([
-      for k, v in var.keys : (
-        (v.usage == "symmetric_encryption" && contains(["aes_256_gcm"], v.algorithm)) ||
-        (v.usage == "asymmetric_encryption" && contains(["rsa_oaep_2048_sha256", "rsa_oaep_3072_sha256", "rsa_oaep_4096_sha256"], v.algorithm)) ||
-        (v.usage == "asymmetric_signing" && contains(["rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256", "ec_p256_sha256", "ec_p384_sha384"], v.algorithm))
-      )
+      for k, v in var.keys : contains(lookup({
+        symmetric_encryption  = ["aes_256_gcm"]
+        asymmetric_encryption = ["rsa_oaep_2048_sha256", "rsa_oaep_3072_sha256", "rsa_oaep_4096_sha256"]
+        asymmetric_signing = [
+          "ec_p256_sha256", "ec_p384_sha384", "ec_secp256k1_sha256",
+          "rsa_pss_2048_sha256", "rsa_pss_3072_sha256", "rsa_pss_4096_sha256",
+          "rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256",
+          "ml_dsa_44", "ml_dsa_65", "ml_dsa_87",
+        ]
+        key_encapsulation = ["ml_kem_768", "ml_kem_1024"]
+      }, v.usage, []), v.algorithm)
     ])
     error_message = "Algorithm must be valid for the specified usage type."
   }

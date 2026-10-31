@@ -29,6 +29,7 @@ output "secrets" {
     - version_count: Number of versions
     - created_at: Creation timestamp (RFC 3339)
     - updated_at: Last update timestamp (RFC 3339)
+    - srn: Scaleway Resource Name of the secret
   EOT
   value = {
     for key, secret in scaleway_secret.this : key => {
@@ -39,6 +40,7 @@ output "secrets" {
       version_count = secret.version_count
       created_at    = secret.created_at
       updated_at    = secret.updated_at
+      srn           = secret.srn
     }
   }
 }
@@ -63,6 +65,7 @@ output "secret_versions" {
     - status: Current status of the version
     - created_at: Creation timestamp (RFC 3339)
     - updated_at: Last update timestamp (RFC 3339)
+    - srn: Scaleway Resource Name of the version
   EOT
   value = {
     for key, version in scaleway_secret_version.this : key => {
@@ -72,6 +75,7 @@ output "secret_versions" {
       status     = version.status
       created_at = version.created_at
       updated_at = version.updated_at
+      srn        = version.srn
     }
   }
 }
@@ -87,7 +91,7 @@ output "keys" {
     Each entry contains:
     - id: The unique identifier of the key
     - name: The name of the key
-    - usage: The usage type (symmetric_encryption, asymmetric_encryption, asymmetric_signing)
+    - usage: The usage type (symmetric_encryption, asymmetric_encryption, asymmetric_signing, key_encapsulation)
     - algorithm: The cryptographic algorithm
     - state: Current state of the key
     - protected: Whether the key is protected from deletion
@@ -95,6 +99,7 @@ output "keys" {
     - rotated_at: Last rotation timestamp
     - created_at: Creation timestamp (RFC 3339)
     - updated_at: Last update timestamp (RFC 3339)
+    - srn: Scaleway Resource Name of the key
   EOT
   value = {
     for key, kms_key in scaleway_key_manager_key.this : key => {
@@ -108,6 +113,7 @@ output "keys" {
       rotated_at     = kms_key.rotated_at
       created_at     = kms_key.created_at
       updated_at     = kms_key.updated_at
+      srn            = kms_key.srn
     }
   }
 }

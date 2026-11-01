@@ -14,17 +14,17 @@
 resource "scaleway_secret" "this" {
   for_each = var.secrets
 
-  name        = each.value.name
+  name        = coalesce(each.value.name, each.key)
   description = each.value.description
   path        = each.value.path
   protected   = each.value.protected
-  tags        = each.value.tags
+  tags        = distinct(concat(var.tags, each.value.tags))
   type        = each.value.type
   region      = var.region
-  project_id  = local.project_id
+  project_id  = var.project_id
 
-  # Key from var.keys (by map key) or an existing Key Manager key ID
-  key_id = try(local.key_ids[each.value.key_id], each.value.key_id)
+  # Key created by this module (by map key) or an existing Key Manager key ID
+  key_id = each.value.key != null ? scaleway_key_manager_key.this[each.value.key].id : each.value.key_id
 
   dynamic "ephemeral_policy" {
     for_each = each.value.ephemeral_policy != null ? [each.value.ephemeral_policy] : []
@@ -41,16 +41,15 @@ resource "scaleway_secret" "this" {
 # Secret Versions
 # ------------------------------------------------------------------------------
 # Creates versions for secrets.
-# Each version contains the actual secret data payload.
-# Maximum data size is 64 KiB.
+# The payload comes from the ephemeral var.secret_data through the write-only
+# data_wo argument, so it never reaches the state. Maximum size is 64 KiB.
 # ==============================================================================
 
 resource "scaleway_secret_version" "this" {
   for_each = var.secret_versions
 
   secret_id       = scaleway_secret.this[each.value.secret_key].id
-  data            = each.value.data
-  data_wo         = each.value.data_wo
+  data_wo         = var.secret_data[each.key]
   data_wo_version = each.value.data_wo_version
   description     = each.value.description
   region          = var.region
@@ -66,15 +65,15 @@ resource "scaleway_secret_version" "this" {
 resource "scaleway_key_manager_key" "this" {
   for_each = var.keys
 
-  name             = each.value.name
+  name             = coalesce(each.value.name, each.key)
   usage            = each.value.usage
   algorithm        = each.value.algorithm
   description      = each.value.description
-  tags             = each.value.tags
-  unprotected      = each.value.unprotected
+  tags             = distinct(concat(var.tags, each.value.tags))
+  unprotected      = !each.value.protected
   protection_level = each.value.protection_level
   region           = var.region
-  project_id       = local.project_id
+  project_id       = var.project_id
 
   dynamic "rotation_policy" {
     for_each = each.value.rotation_period != null ? [each.value.rotation_period] : []
@@ -82,12 +81,5 @@ resource "scaleway_key_manager_key" "this" {
     content {
       rotation_period = rotation_policy.value
     }
-  }
-
-  # Ignore changes to computed attributes that cause drift
-  lifecycle {
-    ignore_changes = [
-      rotation_policy[0].next_rotation_at,
-    ]
   }
 }

@@ -7,20 +7,17 @@
 # ║  - Protected secrets                                                         ║
 # ║  - Multiple encryption keys with different algorithms                        ║
 # ║  - Key rotation policies                                                     ║
+# ║  - Ephemeral write-only payloads, common tags, key-encrypted secret          ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # ==============================================================================
 # Variables
 # ==============================================================================
 
-variable "organization_id" {
-  description = "Your Scaleway Organization ID"
+variable "project_id" {
+  description = "Your Scaleway Project ID (null for the provider's default project)"
   type        = string
-}
-
-variable "project_name" {
-  description = "Your Scaleway Project name"
-  type        = string
+  default     = null
 }
 
 variable "region" {
@@ -29,10 +26,11 @@ variable "region" {
   default     = "fr-par"
 }
 
-variable "db_password" {
-  description = "Database password, sent through the write-only data_wo argument (never stored in state)"
-  type        = string
+variable "secret_values" {
+  description = "Secret payloads keyed like the secret versions; ephemeral, so they never reach the state"
+  type        = map(string)
   sensitive   = true
+  ephemeral   = true
 }
 
 # ==============================================================================
@@ -42,9 +40,9 @@ variable "db_password" {
 module "secrets_and_keys" {
   source = "../../"
 
-  organization_id = var.organization_id
-  project_name    = var.project_name
-  region          = var.region
+  project_id = var.project_id
+  region     = var.region
+  tags       = ["production"]
 
   # ===========================================================================
   # Secrets Configuration
@@ -55,16 +53,17 @@ module "secrets_and_keys" {
       name        = "production-api-credentials"
       description = "API credentials for production environment"
       path        = "/production/api"
-      tags        = ["production", "api", "managed-by-terraform"]
+      tags        = ["api"]
       type        = "opaque"
     }
 
-    # Database credentials with specific type
+    # Database credentials encrypted with a key created by this module
     database = {
       name        = "production-database"
+      key         = "data_encryption"
       description = "Database connection credentials"
       path        = "/production/database"
-      tags        = ["production", "database", "managed-by-terraform"]
+      tags        = ["database"]
       type        = "database_credentials"
     }
 
@@ -73,7 +72,7 @@ module "secrets_and_keys" {
       name        = "production-deploy-ssh-key"
       description = "SSH key used by deployments"
       path        = "/production/ssh"
-      tags        = ["production", "ssh", "managed-by-terraform"]
+      tags        = ["ssh"]
       type        = "ssh_key"
     }
 
@@ -82,8 +81,8 @@ module "secrets_and_keys" {
       name        = "critical-encryption-key"
       description = "Critical encryption key - protected from deletion"
       path        = "/production/encryption"
-      protected   = false
-      tags        = ["production", "critical", "managed-by-terraform"]
+      protected   = true
+      tags        = ["critical"]
     }
 
     # Ephemeral secret that expires after 24 hours
@@ -118,39 +117,31 @@ module "secrets_and_keys" {
   secret_versions = {
     api_credentials_v1 = {
       secret_key  = "api_credentials"
-      data        = "api-key-12345-secret-value"
       description = "Initial API credentials"
     }
 
     database_v1 = {
-      secret_key  = "database"
-      data        = "{\"engine\": \"postgres\", \"host\": \"db.example.com\", \"dbname\": \"myapp\", \"port\": \"5432\", \"username\": \"dbuser\", \"password\": \"secure-password-123\"}"
-      description = "Database credentials v1"
-    }
-
-    database_password_v1 = {
       secret_key      = "database"
-      data_wo         = var.db_password
       data_wo_version = 1 # bump to push a new value
-      description     = "Database password, write-only"
+      description     = "Database credentials v1"
     }
 
     critical_key_v1 = {
       secret_key  = "critical_key"
-      data        = "base64-encoded-encryption-key"
       description = "Primary encryption key"
     }
 
     temporary_token_v1 = {
       secret_key = "temporary_token"
-      data       = "temp-token-xyz-789"
     }
 
     one_time_password_v1 = {
       secret_key = "one_time_password"
-      data       = "one-time-secret-password"
     }
   }
+
+  # Payloads: same keys as secret_versions, from an ephemeral source
+  secret_data = var.secret_values
 
   # ===========================================================================
   # Key Manager Keys
@@ -162,8 +153,7 @@ module "secrets_and_keys" {
       usage       = "symmetric_encryption"
       algorithm   = "aes_256_gcm"
       description = "Primary symmetric key for data encryption"
-      tags        = ["production", "encryption", "managed-by-terraform"]
-      unprotected = false
+      tags        = ["encryption"]
     }
 
     # RSA key for asymmetric encryption
@@ -172,8 +162,7 @@ module "secrets_and_keys" {
       usage       = "asymmetric_encryption"
       algorithm   = "rsa_oaep_4096_sha256"
       description = "RSA-4096 key for asymmetric encryption"
-      tags        = ["production", "encryption", "managed-by-terraform"]
-      unprotected = false
+      tags        = ["encryption"]
     }
 
     # Signing key for digital signatures
@@ -182,8 +171,7 @@ module "secrets_and_keys" {
       usage       = "asymmetric_signing"
       algorithm   = "ec_p384_sha384"
       description = "ECDSA P-384 key for document signing"
-      tags        = ["production", "signing", "managed-by-terraform"]
-      unprotected = false
+      tags        = ["signing"]
     }
 
     # Post-quantum signing key (ML-DSA)
@@ -192,8 +180,7 @@ module "secrets_and_keys" {
       usage       = "asymmetric_signing"
       algorithm   = "ml_dsa_65"
       description = "ML-DSA-65 key for post-quantum signatures"
-      tags        = ["production", "signing", "managed-by-terraform"]
-      unprotected = false
+      tags        = ["signing"]
     }
 
     # Post-quantum key encapsulation key (ML-KEM)
@@ -202,8 +189,7 @@ module "secrets_and_keys" {
       usage       = "key_encapsulation"
       algorithm   = "ml_kem_768"
       description = "ML-KEM-768 key for post-quantum key encapsulation"
-      tags        = ["production", "encryption", "managed-by-terraform"]
-      unprotected = false
+      tags        = ["encryption"]
     }
 
     # Key with automatic rotation (rotates yearly)
@@ -212,19 +198,27 @@ module "secrets_and_keys" {
       usage           = "symmetric_encryption"
       algorithm       = "aes_256_gcm"
       description     = "Symmetric key with automatic yearly rotation"
-      tags            = ["production", "auto-rotate", "managed-by-terraform"]
+      tags            = ["auto-rotate"]
       rotation_period = "8760h" # 1 year (365 days * 24 hours)
-      unprotected     = false
     }
 
-    # Unprotected key (can be deleted)
+    # Hardware Security Module key
+    hsm = {
+      name             = "hsm-key"
+      usage            = "symmetric_encryption"
+      algorithm        = "aes_256_gcm"
+      description      = "Key backed by a dedicated HSM"
+      protection_level = "hsm"
+    }
+
+    # Deletable key (protected = false)
     development = {
       name        = "development-key"
       usage       = "symmetric_encryption"
       algorithm   = "aes_256_gcm"
       description = "Development key - not protected"
-      tags        = ["development", "managed-by-terraform"]
-      unprotected = true
+      tags        = ["development"]
+      protected   = false
     }
   }
 }

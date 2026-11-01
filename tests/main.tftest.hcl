@@ -1,16 +1,14 @@
-mock_provider "scaleway" {}
-
-override_data {
-  target = data.scaleway_account_project.this
-  values = {
-    id = "11111111-1111-1111-1111-111111111111"
+mock_provider "scaleway" {
+  mock_resource "scaleway_key_manager_key" {
+    defaults = {
+      id = "fr-par/33333333-3333-3333-3333-333333333333"
+    }
   }
 }
 
 variables {
-  organization_id = "00000000-0000-0000-0000-000000000000"
-  project_name    = "my-project"
-  region          = "fr-par"
+  project_id = "11111111-1111-1111-1111-111111111111"
+  region     = "fr-par"
 }
 
 run "happy_path" {
@@ -20,11 +18,12 @@ run "happy_path" {
     secrets = {
       db = { name = "db-password" }
     }
+    secret_data = { v1 = "s3cret" }
     secret_versions = {
-      v1 = { secret_key = "db", data_wo = "s3cret", data_wo_version = 1 }
+      v1 = { secret_key = "db", data_wo_version = 1 }
     }
     keys = {
-      main = { name = "main", usage = "symmetric_encryption", algorithm = "aes_256_gcm", unprotected = false }
+      main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" }
     }
   }
 
@@ -48,54 +47,6 @@ run "no_resources_by_default" {
   }
 }
 
-run "project_name_single_letter" {
-  command = plan
-
-  variables {
-    project_name = "a"
-  }
-}
-
-run "project_name_single_digit_rejected" {
-  command = plan
-
-  variables {
-    project_name = "1"
-  }
-
-  expect_failures = [var.project_name]
-}
-
-run "project_name_single_hyphen_rejected" {
-  command = plan
-
-  variables {
-    project_name = "-"
-  }
-
-  expect_failures = [var.project_name]
-}
-
-run "project_name_uppercase_rejected" {
-  command = plan
-
-  variables {
-    project_name = "Prod"
-  }
-
-  expect_failures = [var.project_name]
-}
-
-run "organization_id_rejected" {
-  command = plan
-
-  variables {
-    organization_id = "not-a-uuid"
-  }
-
-  expect_failures = [var.organization_id]
-}
-
 run "region_rejected" {
   command = plan
 
@@ -110,7 +61,7 @@ run "secret_type_rejected" {
   command = plan
 
   variables {
-    secrets = { db = { name = "db", type = "password" } }
+    secrets = { db = { type = "password" } }
   }
 
   expect_failures = [var.secrets]
@@ -121,9 +72,9 @@ run "secret_types_accepted" {
 
   variables {
     secrets = {
-      cert = { name = "cert", type = "certificate" }
-      kv   = { name = "kv", type = "key_value" }
-      ssh  = { name = "ssh", type = "ssh_key" }
+      cert = { type = "certificate" }
+      kv   = { type = "key_value" }
+      ssh  = { type = "ssh_key" }
     }
   }
 
@@ -137,89 +88,302 @@ run "secret_types_accepted" {
   }
 }
 
+run "project_id_omitted" {
+  command = plan
+
+  variables {
+    project_id = null
+  }
+}
+
+run "project_id_rejected" {
+  command = plan
+
+  variables {
+    project_id = "my-project"
+  }
+
+  expect_failures = [var.project_id]
+}
+
+run "project_id_passed_to_resources" {
+  command = plan
+
+  variables {
+    secrets = { db = {} }
+    keys    = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  assert {
+    condition     = scaleway_secret.this["db"].project_id == var.project_id && scaleway_key_manager_key.this["main"].project_id == var.project_id
+    error_message = "project_id must be passed to every secret and key."
+  }
+}
+
+run "name_defaults_to_map_key" {
+  command = plan
+
+  variables {
+    secrets = { db = {} }
+    keys    = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  assert {
+    condition     = scaleway_secret.this["db"].name == "db" && scaleway_key_manager_key.this["main"].name == "main"
+    error_message = "name must default to the map key."
+  }
+}
+
+run "secret_name_from_key_rejected" {
+  command = plan
+
+  variables {
+    secrets = { "bad key" = {} }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+run "secret_name_rejected" {
+  command = plan
+
+  variables {
+    secrets = { db = { name = "-bad name" } }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+run "secret_path_rejected" {
+  command = plan
+
+  variables {
+    secrets = { db = { path = "production/api" } }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+run "secret_path_nested_accepted" {
+  command = plan
+
+  variables {
+    secrets = { db = { path = "/production/api" } }
+  }
+}
+
+run "ephemeral_ttl_rejected" {
+  command = plan
+
+  variables {
+    secrets = { db = { ephemeral_policy = { ttl = "one day" } } }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+run "ephemeral_ttl_accepted" {
+  command = plan
+
+  variables {
+    secrets = { db = { ephemeral_policy = { ttl = "1h30m" } } }
+  }
+
+  assert {
+    condition     = one(scaleway_secret.this["db"].ephemeral_policy).ttl == "1h30m" && one(scaleway_secret.this["db"].ephemeral_policy).action == "delete"
+    error_message = "ttl must be passed and action default to delete."
+  }
+}
+
+run "ephemeral_action_rejected" {
+  command = plan
+
+  variables {
+    secrets = { db = { ephemeral_policy = { ttl = "24h", action = "archive" } } }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+run "tags_merged_distinct" {
+  command = plan
+
+  variables {
+    tags    = ["env:prod"]
+    secrets = { db = { tags = ["app:db", "env:prod"] } }
+    keys    = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  assert {
+    condition     = scaleway_secret.this["db"].tags == tolist(["env:prod", "app:db"]) && scaleway_key_manager_key.this["main"].tags == tolist(["env:prod"])
+    error_message = "tags must be merged without duplicates."
+  }
+}
+
+run "secret_key_and_key_id_rejected" {
+  command = plan
+
+  variables {
+    secrets = { db = { key = "main", key_id = "fr-par/22222222-2222-2222-2222-222222222222" } }
+    keys    = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+run "secret_unknown_key_rejected" {
+  command = plan
+
+  variables {
+    secrets = { db = { key = "missing" } }
+  }
+
+  expect_failures = [var.secrets]
+}
+
+# The key ID is computed, so this run applies against the mock provider only.
+run "key_reference_resolves" {
+  command = apply
+
+  variables {
+    secrets = { db = { key = "main" } }
+    keys    = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  assert {
+    condition     = scaleway_secret.this["db"].key_id == scaleway_key_manager_key.this["main"].id
+    error_message = "key must resolve to the ID of the key created for it."
+  }
+}
+
+run "key_id_passthrough" {
+  command = plan
+
+  variables {
+    secrets = { db = { key_id = "fr-par/22222222-2222-2222-2222-222222222222" } }
+  }
+
+  assert {
+    condition     = scaleway_secret.this["db"].key_id == "fr-par/22222222-2222-2222-2222-222222222222"
+    error_message = "key_id must be passed unchanged."
+  }
+}
+
 run "secret_version_unknown_secret_key_rejected" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "missing", data = "x" } }
+    secrets         = { db = {} }
+    secret_data     = { v1 = "x" }
+    secret_versions = { v1 = { secret_key = "missing" } }
   }
 
   expect_failures = [var.secret_versions]
 }
 
-run "secret_version_both_payloads_rejected" {
+run "secret_data_unknown_version_rejected" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data = "a", data_wo = "b" } }
+    secret_data = { v9 = "x" }
   }
 
-  expect_failures = [var.secret_versions]
+  expect_failures = [var.secret_data]
 }
 
-# 64 KiB exactly
-run "secret_version_payload_at_limit" {
+run "secret_version_without_data_rejected" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data = join("", [for i in range(64) : join("", [for j in range(1024) : "a"])]) } }
+    secrets         = { db = {} }
+    secret_versions = { v1 = { secret_key = "db" } }
   }
+
+  expect_failures = [var.secret_data]
 }
 
-run "secret_version_payload_over_limit_rejected" {
+run "data_wo_version_defaults_to_one" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data = "${join("", [for i in range(64) : join("", [for j in range(1024) : "a"])])}a" } }
+    secrets         = { db = {} }
+    secret_data     = { v1 = "x" }
+    secret_versions = { v1 = { secret_key = "db" } }
   }
 
-  expect_failures = [var.secret_versions]
-}
-
-# 40000 two-byte characters: 80000 bytes
-run "secret_version_multibyte_payload_over_limit_rejected" {
-  command = plan
-
-  variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data_wo = join("", [for i in range(40) : join("", [for j in range(1000) : "é"])]), data_wo_version = 1 } }
+  assert {
+    condition     = scaleway_secret_version.this["v1"].data_wo_version == 1
+    error_message = "data_wo_version must default to 1."
   }
-
-  expect_failures = [var.secret_versions]
 }
 
 run "data_wo_version_fractional_rejected" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data_wo = "x", data_wo_version = 1.5 } }
+    secrets         = { db = {} }
+    secret_data     = { v1 = "x" }
+    secret_versions = { v1 = { secret_key = "db", data_wo_version = 1.5 } }
   }
 
   expect_failures = [var.secret_versions]
 }
 
-run "data_wo_without_version_warns" {
+# 64 KiB exactly
+run "secret_data_payload_at_limit" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data_wo = "x" } }
+    secrets         = { db = {} }
+    secret_data     = { v1 = join("", [for i in range(64) : join("", [for j in range(1024) : "a"])]) }
+    secret_versions = { v1 = { secret_key = "db" } }
   }
-
-  expect_failures = [check.data_wo_version_set]
 }
 
-run "data_wo_with_version_does_not_warn" {
+run "secret_data_over_limit_rejected" {
   command = plan
 
   variables {
-    secrets         = { db = { name = "db" } }
-    secret_versions = { v1 = { secret_key = "db", data_wo = "x", data_wo_version = 1 } }
+    secrets         = { db = {} }
+    secret_data     = { v1 = "${join("", [for i in range(64) : join("", [for j in range(1024) : "a"])])}a" }
+    secret_versions = { v1 = { secret_key = "db" } }
+  }
+
+  expect_failures = [var.secret_data]
+}
+
+# 40000 two-byte characters: 80000 bytes
+run "secret_data_multibyte_over_limit_rejected" {
+  command = plan
+
+  variables {
+    secrets         = { db = {} }
+    secret_data     = { v1 = join("", [for i in range(40) : join("", [for j in range(1000) : "é"])]) }
+    secret_versions = { v1 = { secret_key = "db" } }
+  }
+
+  expect_failures = [var.secret_data]
+}
+
+# The payload is write-only: it must not appear in the plan, state or outputs.
+run "outputs_have_no_payload_and_no_removed_outputs" {
+  command = apply
+
+  variables {
+    secrets         = { db = {} }
+    secret_data     = { v1 = "s3cret" }
+    secret_versions = { v1 = { secret_key = "db" } }
+    keys            = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  assert {
+    condition     = !contains(keys(output.secret_versions["v1"]), "data") && !contains(keys(output.secret_versions["v1"]), "data_wo")
+    error_message = "The secret_versions output must not carry a payload."
+  }
+
+  assert {
+    condition     = length(setintersection(keys(output.keys["main"]), ["data", "data_wo"])) == 0
+    error_message = "No output may carry secret data."
   }
 }
 
@@ -227,7 +391,7 @@ run "key_usage_rejected" {
   command = plan
 
   variables {
-    keys = { main = { name = "main", usage = "hashing", algorithm = "aes_256_gcm", unprotected = false } }
+    keys = { main = { usage = "hashing", algorithm = "aes_256_gcm" } }
   }
 
   expect_failures = [var.keys]
@@ -237,7 +401,7 @@ run "key_algorithm_rejected" {
   command = plan
 
   variables {
-    keys = { main = { name = "main", usage = "symmetric_encryption", algorithm = "ec_p256_sha256", unprotected = false } }
+    keys = { main = { usage = "symmetric_encryption", algorithm = "ec_p256_sha256" } }
   }
 
   expect_failures = [var.keys]
@@ -248,8 +412,8 @@ run "key_encapsulation_key_accepted" {
 
   variables {
     keys = {
-      kem768  = { name = "kem768", usage = "key_encapsulation", algorithm = "ml_kem_768", unprotected = false }
-      kem1024 = { name = "kem1024", usage = "key_encapsulation", algorithm = "ml_kem_1024", unprotected = false }
+      kem768  = { name = "kem768", usage = "key_encapsulation", algorithm = "ml_kem_768" }
+      kem1024 = { name = "kem1024", usage = "key_encapsulation", algorithm = "ml_kem_1024" }
     }
   }
 
@@ -269,9 +433,9 @@ run "key_new_signing_algorithms_accepted" {
 
   variables {
     keys = {
-      mldsa = { name = "mldsa", usage = "asymmetric_signing", algorithm = "ml_dsa_65", unprotected = false }
-      pss   = { name = "pss", usage = "asymmetric_signing", algorithm = "rsa_pss_4096_sha256", unprotected = false }
-      k1    = { name = "k1", usage = "asymmetric_signing", algorithm = "ec_secp256k1_sha256", unprotected = false }
+      mldsa = { name = "mldsa", usage = "asymmetric_signing", algorithm = "ml_dsa_65" }
+      pss   = { name = "pss", usage = "asymmetric_signing", algorithm = "rsa_pss_4096_sha256" }
+      k1    = { name = "k1", usage = "asymmetric_signing", algorithm = "ec_secp256k1_sha256" }
     }
   }
 
@@ -289,7 +453,7 @@ run "key_encapsulation_with_symmetric_algorithm_rejected" {
   command = plan
 
   variables {
-    keys = { main = { name = "main", usage = "key_encapsulation", algorithm = "aes_256_gcm", unprotected = false } }
+    keys = { main = { usage = "key_encapsulation", algorithm = "aes_256_gcm" } }
   }
 
   expect_failures = [var.keys]
@@ -299,7 +463,7 @@ run "key_ml_kem_on_signing_rejected" {
   command = plan
 
   variables {
-    keys = { main = { name = "main", usage = "asymmetric_signing", algorithm = "ml_kem_768", unprotected = false } }
+    keys = { main = { usage = "asymmetric_signing", algorithm = "ml_kem_768" } }
   }
 
   expect_failures = [var.keys]
@@ -313,11 +477,12 @@ run "srn_outputs_exposed" {
     secrets = {
       db = { name = "db-password" }
     }
+    secret_data = { v1 = "s3cret" }
     secret_versions = {
-      v1 = { secret_key = "db", data_wo = "s3cret", data_wo_version = 1 }
+      v1 = { secret_key = "db", data_wo_version = 1 }
     }
     keys = {
-      main = { name = "main", usage = "symmetric_encryption", algorithm = "aes_256_gcm", unprotected = false }
+      main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" }
     }
   }
 
@@ -335,23 +500,57 @@ run "key_protection_level_rejected" {
   command = plan
 
   variables {
-    keys = { main = { name = "main", usage = "symmetric_encryption", algorithm = "aes_256_gcm", protection_level = "cloud", unprotected = false } }
+    keys = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm", protection_level = "cloud" } }
   }
 
   expect_failures = [var.keys]
 }
 
-run "key_unprotected_by_default_warns" {
+run "keys_protected_by_default" {
   command = plan
 
   variables {
-    keys = { main = { name = "main", usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+    keys = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }
+  }
+
+  assert {
+    condition     = scaleway_key_manager_key.this["main"].unprotected == false
+    error_message = "A key must be protected by default (unprotected = false)."
+  }
+}
+
+run "protected_false" {
+  command = plan
+
+  variables {
+    keys = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm", protected = false } }
   }
 
   assert {
     condition     = scaleway_key_manager_key.this["main"].unprotected == true
-    error_message = "The module default of unprotected must stay true."
+    error_message = "protected = false must send unprotected = true."
+  }
+}
+
+run "key_rotation_period_rejected" {
+  command = plan
+
+  variables {
+    keys = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm", rotation_period = "1 year" } }
   }
 
-  expect_failures = [check.keys_deletable]
+  expect_failures = [var.keys]
+}
+
+run "key_rotation_period_accepted" {
+  command = plan
+
+  variables {
+    keys = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm", rotation_period = "8760h" } }
+  }
+
+  assert {
+    condition     = one(scaleway_key_manager_key.this["main"].rotation_policy).rotation_period == "8760h"
+    error_message = "rotation_period must be passed to the rotation policy."
+  }
 }

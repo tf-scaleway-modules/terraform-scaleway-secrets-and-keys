@@ -6,11 +6,11 @@ Key Manager keys: usage and algorithm pairing, protection level, deletion protec
 ## Requirements
 
 ### Requirement: Keys created from a map
-The module SHALL create one `scaleway_key_manager_key` per entry of `var.keys` (map of objects, default `{}`), keyed by the map key, in the resolved project and in `var.region`. Each entry has `name`, `usage` and `algorithm` (required strings) and `description`, `tags` (default `[]`), `unprotected`, `rotation_period` and `protection_level` (optional).
+The module SHALL create one `scaleway_key_manager_key` per entry of `var.keys` (map of objects, default `{}`), keyed by the map key, in `var.project_id` and `var.region`. Each entry has `usage` and `algorithm` (required strings) and `name` (defaults to the map key), `description`, `tags` (default `[]`, merged with `var.tags`), `protected` (default `true`), `rotation_period` and `protection_level` (optional).
 
 #### Scenario: Symmetric key
-- **WHEN** `keys = { main = { name = "main", usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }`
-- **THEN** one key is planned and `key_ids["main"]` is its ID
+- **WHEN** `keys = { main = { usage = "symmetric_encryption", algorithm = "aes_256_gcm" } }`
+- **THEN** one key named `main` is planned and `keys["main"].id` is its ID
 
 #### Scenario: No keys
 - **WHEN** `keys` is `{}`
@@ -55,18 +55,22 @@ The module MUST reject a `usage` other than `symmetric_encryption`, `asymmetric_
 - **THEN** the plan fails with "Key protection_level must be 'software' or 'hsm'."
 
 ### Requirement: Deletion protection flag
-The module SHALL pass `unprotected` to the key; its module default is `true` (the key can be deleted), documented as such in the variable description. The `keys` output SHALL expose the provider's `protected` attribute. The module SHALL emit a `check` warning naming every key whose `unprotected` is `true`, set or defaulted.
+The module SHALL expose `protected` (default `true`) and send `unprotected = !protected` to the key, so keys are protected from deletion unless the caller sets `protected = false`. The `keys` output SHALL expose the provider's `protected` attribute. No `check` warning is emitted.
 
 #### Scenario: Default
-- **WHEN** `unprotected` is not set
-- **THEN** the key is planned with `unprotected = true` and a check warning names it
+- **WHEN** `protected` is not set
+- **THEN** the key is planned with `unprotected = false`
 
 #### Scenario: Protected key
-- **WHEN** `unprotected = false`
-- **THEN** the key is planned with `unprotected = false` and no check warning is emitted for it
+- **WHEN** `protected = true`
+- **THEN** the key is planned with `unprotected = false`
+
+#### Scenario: Deletable key
+- **WHEN** `protected = false`
+- **THEN** the key is planned with `unprotected = true`
 
 ### Requirement: Rotation policy
-When `rotation_period` is set the module SHALL add one `rotation_policy` block with that period; when it is `null` no block SHALL be added. Changes to `rotation_policy[0].next_rotation_at` SHALL be ignored.
+When `rotation_period` is set the module SHALL add one `rotation_policy` block with that period; when it is `null` no block SHALL be added. The module MUST reject a period that is not a Go duration of whole numbers with `h`, `m` or `s` units. `next_rotation_at` is computed by the API and not configurable.
 
 #### Scenario: Yearly rotation
 - **WHEN** `rotation_period = "8760h"`
@@ -76,6 +80,10 @@ When `rotation_period` is set the module SHALL add one `rotation_policy` block w
 - **WHEN** `rotation_period` is not set
 - **THEN** the key has no rotation policy block
 
+#### Scenario: Invalid period
+- **WHEN** `rotation_period = "1 year"`
+- **THEN** the plan fails with "Key rotation_period must be a duration such as 8760h."
+
 #### Scenario: Computed next rotation
-- **WHEN** the provider updates `next_rotation_at`
+- **WHEN** the API updates `next_rotation_at`
 - **THEN** no diff is planned for it

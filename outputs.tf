@@ -5,15 +5,6 @@
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # ==============================================================================
-# Project Output
-# ==============================================================================
-
-output "project_id" {
-  description = "The ID of the Scaleway project (resolved from project_name)."
-  value       = local.project_id
-}
-
-# ==============================================================================
 # Secret Outputs
 # ==============================================================================
 
@@ -43,11 +34,6 @@ output "secrets" {
       srn           = secret.srn
     }
   }
-}
-
-output "secret_ids" {
-  description = "Map of secret keys to their IDs for easy reference."
-  value       = local.secret_ids
 }
 
 # ==============================================================================
@@ -116,9 +102,4 @@ output "keys" {
       srn            = kms_key.srn
     }
   }
-}
-
-output "key_ids" {
-  description = "Map of key keys to their IDs for easy reference."
-  value       = local.key_ids
 }

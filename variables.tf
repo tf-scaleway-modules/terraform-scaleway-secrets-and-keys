@@ -6,48 +6,35 @@
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # ==============================================================================
-# Organization & Project
+# Project, Tags & Region
 # ------------------------------------------------------------------------------
-# Required identifiers for Scaleway resource organization.
-# These determine where resources are created and billed.
+# Where resources are created and the tags every secret and key carries.
 # ==============================================================================
 
-variable "organization_id" {
+variable "project_id" {
   description = <<-EOT
-    Scaleway Organization ID.
+    Scaleway Project ID where secrets and keys are created.
 
-    The organization is the top-level entity in Scaleway's hierarchy.
-    Find this in the Scaleway Console under Organization Settings.
+    If not provided, the provider's default project applies.
 
     Format: UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
   EOT
   type        = string
+  default     = null
 
   validation {
-    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.organization_id))
-    error_message = "Organization ID must be a valid UUID format."
+    condition     = var.project_id == null || can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.project_id))
+    error_message = "Project ID must be a valid UUID."
   }
 }
 
-variable "project_name" {
+variable "tags" {
   description = <<-EOT
-    Scaleway Project name where resources will be created.
-
-    Projects provide logical isolation within an organization.
-    The project ID will be automatically resolved from this name.
-
-    Naming rules:
-    - Must start with a lowercase letter
-    - Can contain lowercase letters, numbers, and hyphens
-    - Must end with a lowercase letter or number
-    - Must be 1-63 characters long
+    Tags applied to every secret and key, merged (without duplicates) with
+    the tags of each item. Secret versions carry no tags.
   EOT
-  type        = string
-
-  validation {
-    condition     = can(regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$", var.project_name))
-    error_message = "Project name must be lowercase alphanumeric with hyphens, start with a letter, and be 1-63 characters."
-  }
+  type        = list(string)
+  default     = []
 }
 
 variable "region" {
@@ -79,28 +66,31 @@ variable "secrets" {
     'secret_versions' variable.
 
     Structure:
-    - name: Secret name (required, used as identifier)
+    - name: Secret name (defaults to the map key)
     - description: Human-readable description
-    - path: Path hierarchy (defaults to "/")
+    - path: Path hierarchy starting with "/" (defaults to "/")
     - protected: If true, prevents deletion (defaults to false)
-    - tags: List of tags for categorization
+    - tags: List of tags for categorization, merged with the 'tags' variable
     - type: Secret type - "opaque" (default), "certificate", "key_value",
       "basic_credentials", "database_credentials" or "ssh_key"
-    - key_id: Key Manager key encrypting the secret's versions - a key of the
-      'keys' variable or an existing key ID (default: Secret Manager internal key).
-      Changing it recreates the secret.
+    - key: Key of the 'keys' variable whose Key Manager key encrypts the
+      secret's versions (exclusive with key_id)
+    - key_id: ID of an existing Key Manager key encrypting the secret's
+      versions (exclusive with key). With neither, the Secret Manager
+      internal key is used. Changing the key recreates the secret.
     - ephemeral_policy: Optional ephemeral configuration
-      - ttl: Time-to-live in Go duration format (e.g., "24h", "168h")
+      - ttl: Time-to-live in Go duration format (e.g., "24h", "1h30m")
       - expires_once_accessed: If true, expires after first access
       - action: Action on expiry - "delete" or "disable"
   EOT
   type = map(object({
-    name        = string
+    name        = optional(string)
     description = optional(string)
     path        = optional(string, "/")
     protected   = optional(bool, false)
     tags        = optional(list(string), [])
     type        = optional(string, "opaque")
+    key         = optional(string)
     key_id      = optional(string)
     ephemeral_policy = optional(object({
       ttl                   = optional(string)
@@ -112,9 +102,14 @@ variable "secrets" {
 
   validation {
     condition = alltrue([
-      for k, v in var.secrets : can(regex("^[a-zA-Z0-9][a-zA-Z0-9._-]{0,253}[a-zA-Z0-9]$", v.name)) || length(v.name) == 1
+      for k, v in var.secrets : can(regex("^[a-zA-Z0-9][a-zA-Z0-9._-]{0,253}[a-zA-Z0-9]$", coalesce(v.name, k))) || length(coalesce(v.name, k)) == 1
     ])
     error_message = "Secret names must be 1-255 characters, alphanumeric with dots, underscores, and hyphens."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.secrets : can(regex("^/[a-zA-Z0-9._/-]*$", v.path))])
+    error_message = "Secret path must start with / and use letters, digits, dots, underscores, hyphens and slashes."
   }
 
   validation {
@@ -125,10 +120,27 @@ variable "secrets" {
   }
 
   validation {
+    condition     = alltrue([for k, v in var.secrets : v.key == null || v.key_id == null])
+    error_message = "A secret can set key or key_id, not both."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.secrets : v.key == null || contains(keys(var.keys), v.key)])
+    error_message = "Each secret key must be a key of the keys variable."
+  }
+
+  validation {
     condition = alltrue([
-      for k, v in var.secrets : v.ephemeral_policy == null || contains(["delete", "disable"], try(v.ephemeral_policy.action, "delete"))
+      for k, v in var.secrets : v.ephemeral_policy == null || contains(["delete", "disable"], v.ephemeral_policy.action)
     ])
     error_message = "Ephemeral policy action must be 'delete' or 'disable'."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.secrets : v.ephemeral_policy == null || v.ephemeral_policy.ttl == null || can(regex("^([0-9]+(h|m|s))+$", v.ephemeral_policy.ttl))
+    ])
+    error_message = "Ephemeral policy ttl must be a duration such as 24h or 1h30m."
   }
 }
 
@@ -140,54 +152,64 @@ variable "secret_versions" {
   description = <<-EOT
     Map of secret versions to create.
 
-    Each version is linked to a secret defined in the 'secrets' variable.
-    The 'data' field contains the actual secret value.
-
-    SECURITY: 'data' is stored in the state (the provider only redacts it in
-    CLI output); this variable cannot be marked sensitive because it is
-    iterated. Prefer 'data_wo', which never reaches the state.
-    Maximum data size is 64 KiB (bytes).
+    Each version is linked to a secret defined in the 'secrets' variable. The
+    payload is not part of this variable: it is the entry of the same key in
+    'secret_data'.
 
     Structure:
     - secret_key: Key referencing a secret in the 'secrets' variable (required)
-    - data: The secret data payload (stored in state)
-    - data_wo: Write-only alternative to data, never stored in state
-      (OpenTofu/Terraform >= 1.11). Set exactly one of data or data_wo.
-    - data_wo_version: Whole number; set it with data_wo and bump it to create
-      a new version from a new data_wo (a check warns when it is missing)
+    - data_wo_version: Whole number (defaults to 1); bump it to create a new
+      version from a new 'secret_data' value
     - description: Optional description of this version
   EOT
   type = map(object({
     secret_key      = string
-    data            = optional(string)
-    data_wo         = optional(string)
-    data_wo_version = optional(number)
+    data_wo_version = optional(number, 1)
     description     = optional(string)
   }))
   default = {}
-
-  validation {
-    condition     = alltrue([for k, v in var.secret_versions : (v.data == null) != (v.data_wo == null)])
-    error_message = "Each secret version must set exactly one of data or data_wo."
-  }
 
   validation {
     condition     = alltrue([for k, v in var.secret_versions : contains(keys(var.secrets), v.secret_key)])
     error_message = "Each secret version secret_key must be a key of the secrets variable."
   }
 
-  # Bytes, not characters: base64 encodes the UTF-8 bytes and its unpadded
-  # length is ceil(4n/3), i.e. 87382 for 65536 bytes and 87383 for 65537.
   validation {
-    condition = alltrue(flatten([
-      for k, v in var.secret_versions : [for d in compact([v.data, v.data_wo]) : length(replace(base64encode(d), "=", "")) <= 87382]
-    ]))
-    error_message = "Secret version data must not exceed 64 KiB (65536 bytes)."
+    condition     = alltrue([for k, v in var.secret_versions : try(v.data_wo_version == floor(v.data_wo_version), false)])
+    error_message = "Secret version data_wo_version must be a whole number."
+  }
+}
+
+variable "secret_data" {
+  description = <<-EOT
+    Map of secret version payloads, keyed like 'secret_versions'.
+
+    SECURITY: ephemeral and sensitive. Each value is sent through the
+    write-only data_wo argument and never reaches the state or a plan file.
+    Supply it from an ephemeral source (an ephemeral variable of the root
+    module, an ephemeral resource). Maximum size per value is 64 KiB (bytes).
+    A new value is only sent when data_wo_version of its version changes.
+  EOT
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+  ephemeral   = true
+
+  validation {
+    condition     = alltrue([for k in keys(var.secret_data) : contains(keys(var.secret_versions), k)])
+    error_message = "Each secret_data key must be a key of the secret_versions variable."
   }
 
   validation {
-    condition     = alltrue([for k, v in var.secret_versions : v.data_wo_version == null || try(v.data_wo_version == floor(v.data_wo_version), false)])
-    error_message = "Secret version data_wo_version must be a whole number."
+    condition     = alltrue([for k in keys(var.secret_versions) : contains(keys(var.secret_data), k)])
+    error_message = "Each secret version must have a secret_data entry."
+  }
+
+  # Bytes, not characters: base64 encodes the UTF-8 bytes and its unpadded
+  # length is ceil(4n/3), i.e. 87382 for 65536 bytes and 87383 for 65537.
+  validation {
+    condition     = alltrue([for k, d in var.secret_data : length(replace(base64encode(d), "=", "")) <= 87382])
+    error_message = "Secret version data must not exceed 64 KiB (65536 bytes)."
   }
 }
 
@@ -203,7 +225,7 @@ variable "keys" {
     and digital signing.
 
     Structure:
-    - name: Key name (required)
+    - name: Key name (defaults to the map key)
     - usage: Key usage type (required)
       - "symmetric_encryption": For symmetric encrypt/decrypt operations
       - "asymmetric_encryption": For asymmetric encrypt/decrypt operations
@@ -221,24 +243,30 @@ variable "keys" {
       algorithm for a region or protection level is decided by the API, not
       validated here.
     - description: Human-readable description
-    - tags: List of tags for categorization
-    - unprotected: If true, allows key deletion (defaults to true - NOT protected;
-      set false to protect the key, a check warns for every deletable key)
+    - tags: List of tags for categorization, merged with the 'tags' variable
+    - protected: If true (default), the key cannot be deleted; set false and
+      apply before destroying the key. Deleting a key makes everything
+      encrypted with it unreadable.
     - rotation_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year)
     - protection_level: "software" (default) or "hsm" (dedicated Hardware Security Module).
       Immutable: changing it recreates the key.
   EOT
   type = map(object({
-    name             = string
+    name             = optional(string)
     usage            = string
     algorithm        = string
     description      = optional(string)
     tags             = optional(list(string), [])
-    unprotected      = optional(bool, true)
+    protected        = optional(bool, true)
     rotation_period  = optional(string)
     protection_level = optional(string)
   }))
   default = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.keys : v.rotation_period == null || can(regex("^([0-9]+(h|m|s))+$", v.rotation_period))])
+    error_message = "Key rotation_period must be a duration such as 8760h."
+  }
 
   validation {
     condition     = alltrue([for k, v in var.keys : v.protection_level == null || contains(["software", "hsm"], v.protection_level)])

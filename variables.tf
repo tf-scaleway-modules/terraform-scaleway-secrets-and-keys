@@ -12,13 +12,7 @@
 # ==============================================================================
 
 variable "project_id" {
-  description = <<-EOT
-    Scaleway Project ID where secrets and keys are created.
-
-    If not provided, the provider's default project applies.
-
-    Format: UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-  EOT
+  description = "Scaleway Project ID (UUID) where secrets and keys are created. When `null`, the provider's default project applies."
   type        = string
   default     = null
 
@@ -29,22 +23,13 @@ variable "project_id" {
 }
 
 variable "tags" {
-  description = <<-EOT
-    Tags applied to every secret and key, merged (without duplicates) with
-    the tags of each item. Secret versions carry no tags.
-  EOT
+  description = "Tags applied to every secret and key, merged without duplicates with the tags of each item. Secret versions carry no tags."
   type        = list(string)
   default     = []
 }
 
 variable "region" {
-  description = <<-EOT
-    Scaleway region where resources will be created.
-
-    If not provided, defaults to the provider's region configuration.
-
-    Valid regions: fr-par, nl-ams, pl-waw
-  EOT
+  description = "Scaleway region where resources are created: `fr-par`, `nl-ams` or `pl-waw`. When `null`, the provider's region applies."
   type        = string
   default     = null
 
@@ -59,30 +44,7 @@ variable "region" {
 # ==============================================================================
 
 variable "secrets" {
-  description = <<-EOT
-    Map of secrets to create in Scaleway Secret Manager.
-
-    Each secret can have multiple versions managed separately via the
-    'secret_versions' variable.
-
-    Structure:
-    - name: Secret name (defaults to the map key)
-    - description: Human-readable description
-    - path: Path hierarchy starting with "/" (defaults to "/")
-    - protected: If true, prevents deletion (defaults to false)
-    - tags: List of tags for categorization, merged with the 'tags' variable
-    - type: Secret type - "opaque" (default), "certificate", "key_value",
-      "basic_credentials", "database_credentials" or "ssh_key"
-    - key: Key of the 'keys' variable whose Key Manager key encrypts the
-      secret's versions (exclusive with key_id)
-    - key_id: ID of an existing Key Manager key encrypting the secret's
-      versions (exclusive with key). With neither, the Secret Manager
-      internal key is used. Changing the key recreates the secret.
-    - ephemeral_policy: Optional ephemeral configuration
-      - ttl: Time-to-live in Go duration format (e.g., "24h", "1h30m")
-      - expires_once_accessed: If true, expires after first access
-      - action: Action on expiry - "delete" or "disable"
-  EOT
+  description = "Map of secrets to create in Scaleway Secret Manager, keyed by a stable reference used by `secret_versions`. See Input reference in the README for every attribute."
   type = map(object({
     name        = optional(string)
     description = optional(string)
@@ -149,19 +111,7 @@ variable "secrets" {
 # ==============================================================================
 
 variable "secret_versions" {
-  description = <<-EOT
-    Map of secret versions to create.
-
-    Each version is linked to a secret defined in the 'secrets' variable. The
-    payload is not part of this variable: it is the entry of the same key in
-    'secret_data'.
-
-    Structure:
-    - secret_key: Key referencing a secret in the 'secrets' variable (required)
-    - data_wo_version: Whole number (defaults to 1); bump it to create a new
-      version from a new 'secret_data' value
-    - description: Optional description of this version
-  EOT
+  description = "Map of secret versions to create, keyed by a stable reference shared with `secret_data`, which holds the payload. Each entry points to a secret of `secrets`. See Input reference in the README for every attribute."
   type = map(object({
     secret_key      = string
     data_wo_version = optional(number, 1)
@@ -181,15 +131,7 @@ variable "secret_versions" {
 }
 
 variable "secret_data" {
-  description = <<-EOT
-    Map of secret version payloads, keyed like 'secret_versions'.
-
-    SECURITY: ephemeral and sensitive. Each value is sent through the
-    write-only data_wo argument and never reaches the state or a plan file.
-    Supply it from an ephemeral source (an ephemeral variable of the root
-    module, an ephemeral resource). Maximum size per value is 64 KiB (bytes).
-    A new value is only sent when data_wo_version of its version changes.
-  EOT
+  description = "Sensitive and ephemeral map of secret version payloads keyed like `secret_versions`, each at most 64 KiB. Values are sent through the write-only `data_wo` argument and never reach the state or a plan file; a new value is sent only when `data_wo_version` changes."
   type        = map(string)
   default     = {}
   sensitive   = true
@@ -218,39 +160,7 @@ variable "secret_data" {
 # ==============================================================================
 
 variable "keys" {
-  description = <<-EOT
-    Map of encryption keys to create in Scaleway Key Manager.
-
-    Keys are used for cryptographic operations like encryption, decryption,
-    and digital signing.
-
-    Structure:
-    - name: Key name (defaults to the map key)
-    - usage: Key usage type (required)
-      - "symmetric_encryption": For symmetric encrypt/decrypt operations
-      - "asymmetric_encryption": For asymmetric encrypt/decrypt operations
-      - "asymmetric_signing": For digital signatures
-      - "key_encapsulation": For key encapsulation (post-quantum ML-KEM)
-    - algorithm: Cryptographic algorithm (required, depends on usage)
-      - For symmetric_encryption: "aes_256_gcm"
-      - For asymmetric_encryption: "rsa_oaep_2048_sha256", "rsa_oaep_3072_sha256", "rsa_oaep_4096_sha256"
-      - For asymmetric_signing: "ec_p256_sha256", "ec_p384_sha384", "ec_secp256k1_sha256",
-        "rsa_pss_2048_sha256", "rsa_pss_3072_sha256", "rsa_pss_4096_sha256",
-        "rsa_pkcs1_2048_sha256", "rsa_pkcs1_3072_sha256", "rsa_pkcs1_4096_sha256",
-        "ml_dsa_44", "ml_dsa_65", "ml_dsa_87"
-      - For key_encapsulation: "ml_kem_768", "ml_kem_1024"
-      ML-KEM and ML-DSA are post-quantum algorithms. Whether the API offers an
-      algorithm for a region or protection level is decided by the API, not
-      validated here.
-    - description: Human-readable description
-    - tags: List of tags for categorization, merged with the 'tags' variable
-    - protected: If true (default), the key cannot be deleted; set false and
-      apply before destroying the key. Deleting a key makes everything
-      encrypted with it unreadable.
-    - rotation_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year)
-    - protection_level: "software" (default) or "hsm" (dedicated Hardware Security Module).
-      Immutable: changing it recreates the key.
-  EOT
+  description = "Map of encryption keys to create in Scaleway Key Manager, keyed by a stable reference used by `secrets`. See Input reference in the README for every attribute, valid usage and algorithm pairs."
   type = map(object({
     name             = optional(string)
     usage            = string

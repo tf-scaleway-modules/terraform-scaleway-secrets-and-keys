@@ -9,19 +9,7 @@
 # ==============================================================================
 
 output "secrets" {
-  description = <<-EOT
-    Map of created secrets with their attributes.
-
-    Each entry contains:
-    - id: The unique identifier of the secret
-    - name: The name of the secret
-    - path: The path hierarchy
-    - status: Current status of the secret
-    - version_count: Number of versions
-    - created_at: Creation timestamp (RFC 3339)
-    - updated_at: Last update timestamp (RFC 3339)
-    - srn: Scaleway Resource Name of the secret
-  EOT
+  description = "Map of created secrets keyed like `secrets`, with `id`, `name`, `path`, `status`, `version_count`, `created_at`, `updated_at` and `srn`."
   value = {
     for key, secret in scaleway_secret.this : key => {
       id            = secret.id
@@ -41,18 +29,7 @@ output "secrets" {
 # ==============================================================================
 
 output "secret_versions" {
-  description = <<-EOT
-    Map of created secret versions with their attributes.
-
-    Each entry contains:
-    - id: The unique identifier of the version
-    - secret_id: The ID of the parent secret
-    - revision: The revision number
-    - status: Current status of the version
-    - created_at: Creation timestamp (RFC 3339)
-    - updated_at: Last update timestamp (RFC 3339)
-    - srn: Scaleway Resource Name of the version
-  EOT
+  description = "Map of created secret versions keyed like `secret_versions`, with `id`, `secret_id`, `revision`, `status`, `created_at`, `updated_at` and `srn`."
   value = {
     for key, version in scaleway_secret_version.this : key => {
       id         = version.id
@@ -71,22 +48,7 @@ output "secret_versions" {
 # ==============================================================================
 
 output "keys" {
-  description = <<-EOT
-    Map of created encryption keys with their attributes.
-
-    Each entry contains:
-    - id: The unique identifier of the key
-    - name: The name of the key
-    - usage: The usage type (symmetric_encryption, asymmetric_encryption, asymmetric_signing, key_encapsulation)
-    - algorithm: The cryptographic algorithm
-    - state: Current state of the key
-    - protected: Whether the key is protected from deletion
-    - rotation_count: Number of rotations performed
-    - rotated_at: Last rotation timestamp
-    - created_at: Creation timestamp (RFC 3339)
-    - updated_at: Last update timestamp (RFC 3339)
-    - srn: Scaleway Resource Name of the key
-  EOT
+  description = "Map of created encryption keys keyed like `keys`, with `id`, `name`, `usage`, `algorithm`, `state`, `protected`, `rotation_count`, `rotated_at`, `created_at`, `updated_at` and `srn`."
   value = {
     for key, kms_key in scaleway_key_manager_key.this : key => {
       id             = kms_key.id

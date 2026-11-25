@@ -35,7 +35,7 @@ This module provides comprehensive management for Scaleway security resources, e
 
 ### Prerequisites
 
-- Terraform >= 1.11 or OpenTofu >= 1.11
+- OpenTofu >= 1.11.0 and Terraform >= 1.11.0
 - Scaleway account with appropriate permissions
 - Project ID from Scaleway Console (optional, the provider's default project applies otherwise)
 
@@ -215,6 +215,80 @@ secret_data = {
 }
 ```
 
+### Input reference
+
+#### secrets
+
+Map of secrets to create in Scaleway Secret Manager. Each secret can have multiple versions managed separately through `secret_versions`. The map key is the reference used by `secret_versions`.
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `string` | map key | Secret name, 1-255 characters: alphanumerics, dots, underscores and hyphens. |
+| `description` | `string` | `null` | Human-readable description. |
+| `path` | `string` | `"/"` | Path hierarchy, starting with `/`. |
+| `protected` | `bool` | `false` | If `true`, prevents deletion. |
+| `tags` | `list(string)` | `[]` | Tags for categorization, merged with the `tags` variable. |
+| `type` | `string` | `"opaque"` | One of `opaque`, `certificate`, `key_value`, `basic_credentials`, `database_credentials`, `ssh_key`. |
+| `key` | `string` | `null` | Key of the `keys` variable whose Key Manager key encrypts the secret's versions. Exclusive with `key_id`. |
+| `key_id` | `string` | `null` | ID of an existing Key Manager key encrypting the secret's versions. Exclusive with `key`. With neither, the Secret Manager internal key is used. Changing the key recreates the secret. |
+| `ephemeral_policy` | `object` | `null` | Optional ephemeral configuration, see below. |
+
+`ephemeral_policy` attributes:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ttl` | `string` | `null` | Time-to-live in Go duration format, e.g. `24h` or `1h30m`. |
+| `expires_once_accessed` | `bool` | `false` | If `true`, the secret expires after its first access. |
+| `action` | `string` | `"delete"` | Action on expiry: `delete` or `disable`. |
+
+#### secret_versions
+
+Map of secret versions to create. Each version is linked to a secret of `secrets`. The payload is not part of this variable: it is the entry of the same key in `secret_data`.
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `secret_key` | `string` | required | Key referencing a secret in the `secrets` variable. |
+| `data_wo_version` | `number` | `1` | Whole number; bump it to create a new version from a new `secret_data` value. |
+| `description` | `string` | `null` | Description of this version. |
+
+#### secret_data
+
+Map of secret version payloads, keyed like `secret_versions`. The variable is sensitive and ephemeral: each value is sent through the write-only `data_wo` argument and never reaches the state or a plan file. Supply it from an ephemeral source (an ephemeral variable of the root module, an ephemeral resource). The maximum size per value is 64 KiB (bytes). A new value is only sent when `data_wo_version` of its version changes.
+
+#### keys
+
+Map of encryption keys to create in Scaleway Key Manager, used for cryptographic operations such as encryption, decryption and digital signing. The map key is the reference used by `secrets`.
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `string` | map key | Key name. |
+| `usage` | `string` | required | Key usage type, see the table below. |
+| `algorithm` | `string` | required | Cryptographic algorithm, valid values depend on `usage`. |
+| `description` | `string` | `null` | Human-readable description. |
+| `tags` | `list(string)` | `[]` | Tags for categorization, merged with the `tags` variable. |
+| `protected` | `bool` | `true` | If `true`, the key cannot be deleted; set `false` and apply before destroying the key. Deleting a key makes everything encrypted with it unreadable. |
+| `rotation_period` | `string` | `null` | Automatic rotation period in Go duration format, e.g. `8760h` for 1 year. |
+| `protection_level` | `string` | `null` (`software`) | `software` (default) or `hsm` (dedicated Hardware Security Module). Immutable: changing it recreates the key. |
+
+| `usage` | Purpose | Valid `algorithm` values |
+|---------|---------|--------------------------|
+| `symmetric_encryption` | Symmetric encrypt/decrypt operations | `aes_256_gcm` |
+| `asymmetric_encryption` | Asymmetric encrypt/decrypt operations | `rsa_oaep_2048_sha256`, `rsa_oaep_3072_sha256`, `rsa_oaep_4096_sha256` |
+| `asymmetric_signing` | Digital signatures | `ec_p256_sha256`, `ec_p384_sha384`, `ec_secp256k1_sha256`, `rsa_pss_2048_sha256`, `rsa_pss_3072_sha256`, `rsa_pss_4096_sha256`, `rsa_pkcs1_2048_sha256`, `rsa_pkcs1_3072_sha256`, `rsa_pkcs1_4096_sha256`, `ml_dsa_44`, `ml_dsa_65`, `ml_dsa_87` |
+| `key_encapsulation` | Key encapsulation (post-quantum ML-KEM) | `ml_kem_768`, `ml_kem_1024` |
+
+ML-KEM and ML-DSA are post-quantum algorithms. Whether the API offers an algorithm for a region or protection level is decided by the API, not validated here.
+
+### Output reference
+
+Each output is a map keyed like the input it comes from.
+
+| Output | Attributes per entry |
+|--------|----------------------|
+| `secrets` | `id`, `name`, `path`, `status`, `version_count` (number of versions), `created_at` and `updated_at` (RFC 3339), `srn` (Scaleway Resource Name) |
+| `secret_versions` | `id`, `secret_id` (parent secret), `revision`, `status`, `created_at` and `updated_at` (RFC 3339), `srn` |
+| `keys` | `id`, `name`, `usage`, `algorithm`, `state`, `protected` (protected from deletion), `rotation_count`, `rotated_at`, `created_at` and `updated_at` (RFC 3339), `srn` |
+
 ## Architecture
 
 ```
@@ -293,21 +367,21 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_keys"></a> [keys](#input\_keys) | Map of encryption keys to create in Scaleway Key Manager.<br/><br/>Keys are used for cryptographic operations like encryption, decryption,<br/>and digital signing.<br/><br/>Structure:<br/>- name: Key name (defaults to the map key)<br/>- usage: Key usage type (required)<br/>  - "symmetric\_encryption": For symmetric encrypt/decrypt operations<br/>  - "asymmetric\_encryption": For asymmetric encrypt/decrypt operations<br/>  - "asymmetric\_signing": For digital signatures<br/>  - "key\_encapsulation": For key encapsulation (post-quantum ML-KEM)<br/>- algorithm: Cryptographic algorithm (required, depends on usage)<br/>  - For symmetric\_encryption: "aes\_256\_gcm"<br/>  - For asymmetric\_encryption: "rsa\_oaep\_2048\_sha256", "rsa\_oaep\_3072\_sha256", "rsa\_oaep\_4096\_sha256"<br/>  - For asymmetric\_signing: "ec\_p256\_sha256", "ec\_p384\_sha384", "ec\_secp256k1\_sha256",<br/>    "rsa\_pss\_2048\_sha256", "rsa\_pss\_3072\_sha256", "rsa\_pss\_4096\_sha256",<br/>    "rsa\_pkcs1\_2048\_sha256", "rsa\_pkcs1\_3072\_sha256", "rsa\_pkcs1\_4096\_sha256",<br/>    "ml\_dsa\_44", "ml\_dsa\_65", "ml\_dsa\_87"<br/>  - For key\_encapsulation: "ml\_kem\_768", "ml\_kem\_1024"<br/>  ML-KEM and ML-DSA are post-quantum algorithms. Whether the API offers an<br/>  algorithm for a region or protection level is decided by the API, not<br/>  validated here.<br/>- description: Human-readable description<br/>- tags: List of tags for categorization, merged with the 'tags' variable<br/>- protected: If true (default), the key cannot be deleted; set false and<br/>  apply before destroying the key. Deleting a key makes everything<br/>  encrypted with it unreadable.<br/>- rotation\_period: Automatic rotation period in Go duration format (e.g., "8760h" for 1 year)<br/>- protection\_level: "software" (default) or "hsm" (dedicated Hardware Security Module).<br/>  Immutable: changing it recreates the key. | <pre>map(object({<br/>    name             = optional(string)<br/>    usage            = string<br/>    algorithm        = string<br/>    description      = optional(string)<br/>    tags             = optional(list(string), [])<br/>    protected        = optional(bool, true)<br/>    rotation_period  = optional(string)<br/>    protection_level = optional(string)<br/>  }))</pre> | `{}` | no |
-| <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Scaleway Project ID where secrets and keys are created.<br/><br/>If not provided, the provider's default project applies.<br/><br/>Format: UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) | `string` | `null` | no |
-| <a name="input_region"></a> [region](#input\_region) | Scaleway region where resources will be created.<br/><br/>If not provided, defaults to the provider's region configuration.<br/><br/>Valid regions: fr-par, nl-ams, pl-waw | `string` | `null` | no |
-| <a name="input_secret_data"></a> [secret\_data](#input\_secret\_data) | Map of secret version payloads, keyed like 'secret\_versions'.<br/><br/>SECURITY: ephemeral and sensitive. Each value is sent through the<br/>write-only data\_wo argument and never reaches the state or a plan file.<br/>Supply it from an ephemeral source (an ephemeral variable of the root<br/>module, an ephemeral resource). Maximum size per value is 64 KiB (bytes).<br/>A new value is only sent when data\_wo\_version of its version changes. | `map(string)` | `{}` | no |
-| <a name="input_secret_versions"></a> [secret\_versions](#input\_secret\_versions) | Map of secret versions to create.<br/><br/>Each version is linked to a secret defined in the 'secrets' variable. The<br/>payload is not part of this variable: it is the entry of the same key in<br/>'secret\_data'.<br/><br/>Structure:<br/>- secret\_key: Key referencing a secret in the 'secrets' variable (required)<br/>- data\_wo\_version: Whole number (defaults to 1); bump it to create a new<br/>  version from a new 'secret\_data' value<br/>- description: Optional description of this version | <pre>map(object({<br/>    secret_key      = string<br/>    data_wo_version = optional(number, 1)<br/>    description     = optional(string)<br/>  }))</pre> | `{}` | no |
-| <a name="input_secrets"></a> [secrets](#input\_secrets) | Map of secrets to create in Scaleway Secret Manager.<br/><br/>Each secret can have multiple versions managed separately via the<br/>'secret\_versions' variable.<br/><br/>Structure:<br/>- name: Secret name (defaults to the map key)<br/>- description: Human-readable description<br/>- path: Path hierarchy starting with "/" (defaults to "/")<br/>- protected: If true, prevents deletion (defaults to false)<br/>- tags: List of tags for categorization, merged with the 'tags' variable<br/>- type: Secret type - "opaque" (default), "certificate", "key\_value",<br/>  "basic\_credentials", "database\_credentials" or "ssh\_key"<br/>- key: Key of the 'keys' variable whose Key Manager key encrypts the<br/>  secret's versions (exclusive with key\_id)<br/>- key\_id: ID of an existing Key Manager key encrypting the secret's<br/>  versions (exclusive with key). With neither, the Secret Manager<br/>  internal key is used. Changing the key recreates the secret.<br/>- ephemeral\_policy: Optional ephemeral configuration<br/>  - ttl: Time-to-live in Go duration format (e.g., "24h", "1h30m")<br/>  - expires\_once\_accessed: If true, expires after first access<br/>  - action: Action on expiry - "delete" or "disable" | <pre>map(object({<br/>    name        = optional(string)<br/>    description = optional(string)<br/>    path        = optional(string, "/")<br/>    protected   = optional(bool, false)<br/>    tags        = optional(list(string), [])<br/>    type        = optional(string, "opaque")<br/>    key         = optional(string)<br/>    key_id      = optional(string)<br/>    ephemeral_policy = optional(object({<br/>      ttl                   = optional(string)<br/>      expires_once_accessed = optional(bool, false)<br/>      action                = optional(string, "delete")<br/>    }))<br/>  }))</pre> | `{}` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to every secret and key, merged (without duplicates) with<br/>the tags of each item. Secret versions carry no tags. | `list(string)` | `[]` | no |
+| <a name="input_keys"></a> [keys](#input\_keys) | Map of encryption keys to create in Scaleway Key Manager, keyed by a stable reference used by `secrets`. See Input reference in the README for every attribute, valid usage and algorithm pairs. | <pre>map(object({<br/>    name             = optional(string)<br/>    usage            = string<br/>    algorithm        = string<br/>    description      = optional(string)<br/>    tags             = optional(list(string), [])<br/>    protected        = optional(bool, true)<br/>    rotation_period  = optional(string)<br/>    protection_level = optional(string)<br/>  }))</pre> | `{}` | no |
+| <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Scaleway Project ID (UUID) where secrets and keys are created. When `null`, the provider's default project applies. | `string` | `null` | no |
+| <a name="input_region"></a> [region](#input\_region) | Scaleway region where resources are created: `fr-par`, `nl-ams` or `pl-waw`. When `null`, the provider's region applies. | `string` | `null` | no |
+| <a name="input_secret_data"></a> [secret\_data](#input\_secret\_data) | Sensitive and ephemeral map of secret version payloads keyed like `secret_versions`, each at most 64 KiB. Values are sent through the write-only `data_wo` argument and never reach the state or a plan file; a new value is sent only when `data_wo_version` changes. | `map(string)` | `{}` | no |
+| <a name="input_secret_versions"></a> [secret\_versions](#input\_secret\_versions) | Map of secret versions to create, keyed by a stable reference shared with `secret_data`, which holds the payload. Each entry points to a secret of `secrets`. See Input reference in the README for every attribute. | <pre>map(object({<br/>    secret_key      = string<br/>    data_wo_version = optional(number, 1)<br/>    description     = optional(string)<br/>  }))</pre> | `{}` | no |
+| <a name="input_secrets"></a> [secrets](#input\_secrets) | Map of secrets to create in Scaleway Secret Manager, keyed by a stable reference used by `secret_versions`. See Input reference in the README for every attribute. | <pre>map(object({<br/>    name        = optional(string)<br/>    description = optional(string)<br/>    path        = optional(string, "/")<br/>    protected   = optional(bool, false)<br/>    tags        = optional(list(string), [])<br/>    type        = optional(string, "opaque")<br/>    key         = optional(string)<br/>    key_id      = optional(string)<br/>    ephemeral_policy = optional(object({<br/>      ttl                   = optional(string)<br/>      expires_once_accessed = optional(bool, false)<br/>      action                = optional(string, "delete")<br/>    }))<br/>  }))</pre> | `{}` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to every secret and key, merged without duplicates with the tags of each item. Secret versions carry no tags. | `list(string)` | `[]` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| <a name="output_keys"></a> [keys](#output\_keys) | Map of created encryption keys with their attributes.<br/><br/>Each entry contains:<br/>- id: The unique identifier of the key<br/>- name: The name of the key<br/>- usage: The usage type (symmetric\_encryption, asymmetric\_encryption, asymmetric\_signing, key\_encapsulation)<br/>- algorithm: The cryptographic algorithm<br/>- state: Current state of the key<br/>- protected: Whether the key is protected from deletion<br/>- rotation\_count: Number of rotations performed<br/>- rotated\_at: Last rotation timestamp<br/>- created\_at: Creation timestamp (RFC 3339)<br/>- updated\_at: Last update timestamp (RFC 3339)<br/>- srn: Scaleway Resource Name of the key |
-| <a name="output_secret_versions"></a> [secret\_versions](#output\_secret\_versions) | Map of created secret versions with their attributes.<br/><br/>Each entry contains:<br/>- id: The unique identifier of the version<br/>- secret\_id: The ID of the parent secret<br/>- revision: The revision number<br/>- status: Current status of the version<br/>- created\_at: Creation timestamp (RFC 3339)<br/>- updated\_at: Last update timestamp (RFC 3339)<br/>- srn: Scaleway Resource Name of the version |
-| <a name="output_secrets"></a> [secrets](#output\_secrets) | Map of created secrets with their attributes.<br/><br/>Each entry contains:<br/>- id: The unique identifier of the secret<br/>- name: The name of the secret<br/>- path: The path hierarchy<br/>- status: Current status of the secret<br/>- version\_count: Number of versions<br/>- created\_at: Creation timestamp (RFC 3339)<br/>- updated\_at: Last update timestamp (RFC 3339)<br/>- srn: Scaleway Resource Name of the secret |
+| <a name="output_keys"></a> [keys](#output\_keys) | Map of created encryption keys keyed like `keys`, with `id`, `name`, `usage`, `algorithm`, `state`, `protected`, `rotation_count`, `rotated_at`, `created_at`, `updated_at` and `srn`. |
+| <a name="output_secret_versions"></a> [secret\_versions](#output\_secret\_versions) | Map of created secret versions keyed like `secret_versions`, with `id`, `secret_id`, `revision`, `status`, `created_at`, `updated_at` and `srn`. |
+| <a name="output_secrets"></a> [secrets](#output\_secrets) | Map of created secrets keyed like `secrets`, with `id`, `name`, `path`, `status`, `version_count`, `created_at`, `updated_at` and `srn`. |
 <!-- END_TF_DOCS -->
 
 ## Contributing
@@ -362,7 +436,7 @@ This module is provided "as is" without warranty of any kind. Always test in non
 
 [apache]: https://opensource.org/licenses/Apache-2.0
 [apache-shield]: https://img.shields.io/badge/License-Apache%202.0-blue.svg
-[terraform-badge]: https://img.shields.io/badge/Terraform-%3E%3D1.11-623CE4
+[terraform-badge]: https://img.shields.io/badge/Terraform-%3E%3D1.11.0-623CE4
 [terraform-url]: https://www.terraform.io
 [scaleway-badge]: https://img.shields.io/badge/Scaleway%20Provider-%3E%3D2.89-4f0599
 [scaleway-url]: https://registry.terraform.io/providers/scaleway/scaleway/

@@ -1,7 +1,7 @@
 # AGENTS.md — terraform-modules-scaleway-secrets-and-keys
 
 ## Project
-OpenTofu/Terraform module that manages Scaleway Secret Manager secrets and
+OpenTofu (>= 1.11.0) and Terraform (>= 1.11.0) module that manages Scaleway Secret Manager secrets and
 versions and Key Manager keys. Published on GitLab at
 `gitlab.com/leminnov/terraform/modules/scaleway-secrets-and-keys`;
 consumers pin a git tag. Planning uses OpenSpec (`openspec/`). Engineering
@@ -76,7 +76,7 @@ Never deviate silently: add a `# DEVIATION(<spec-id>): <reason>` comment and lis
 in your summary.
 
 ## Commands
-- Format / validate: `tofu fmt -recursive`, `tofu init -backend=false && tofu validate`, `tflint --recursive`
+- Format / validate: `tofu fmt -recursive`, `tofu init -backend=false && tofu validate`, `terraform init -backend=false && terraform validate`, `tflint --recursive`
 - Tests: `tofu test` (unit tests in `tests/main.tftest.hcl`, mock provider, no account)
 - Everything incl. README regeneration: `pre-commit run -a`; changelog: `mise run changelog`
 - Specs: `mise run spec-validate`; standards stores: `mise run spec-setup`

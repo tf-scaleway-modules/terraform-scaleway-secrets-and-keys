@@ -35,7 +35,7 @@ This module provides comprehensive management for Scaleway security resources, e
 
 ### Prerequisites
 
-- Terraform >= 1.11 or OpenTofu >= 1.11
+- OpenTofu >= 1.11.0 and Terraform >= 1.11.0
 - Scaleway account with appropriate permissions
 - Project ID from Scaleway Console (optional, the provider's default project applies otherwise)
 
@@ -341,14 +341,14 @@ Expected diffs on the first plan: a new revision for each version that used `dat
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.11.0 |
 | <a name="requirement_scaleway"></a> [scaleway](#requirement\_scaleway) | ~> 2.89 |
 
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="provider_scaleway"></a> [scaleway](#provider\_scaleway) | ~> 2.89 |
 
 ## Modules
@@ -358,7 +358,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
 | [scaleway_key_manager_key.this](https://registry.terraform.io/providers/scaleway/scaleway/latest/docs/resources/key_manager_key) | resource |
 | [scaleway_secret.this](https://registry.terraform.io/providers/scaleway/scaleway/latest/docs/resources/secret) | resource |
 | [scaleway_secret_version.this](https://registry.terraform.io/providers/scaleway/scaleway/latest/docs/resources/secret_version) | resource |
@@ -366,7 +366,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_keys"></a> [keys](#input\_keys) | Map of encryption keys to create in Scaleway Key Manager, keyed by a stable reference used by `secrets`. See Input reference in the README for every attribute, valid usage and algorithm pairs. | <pre>map(object({<br/>    name             = optional(string)<br/>    usage            = string<br/>    algorithm        = string<br/>    description      = optional(string)<br/>    tags             = optional(list(string), [])<br/>    protected        = optional(bool, true)<br/>    rotation_period  = optional(string)<br/>    protection_level = optional(string)<br/>  }))</pre> | `{}` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Scaleway Project ID (UUID) where secrets and keys are created. When `null`, the provider's default project applies. | `string` | `null` | no |
 | <a name="input_region"></a> [region](#input\_region) | Scaleway region where resources are created: `fr-par`, `nl-ams` or `pl-waw`. When `null`, the provider's region applies. | `string` | `null` | no |
@@ -378,7 +378,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
 | <a name="output_keys"></a> [keys](#output\_keys) | Map of created encryption keys keyed like `keys`, with `id`, `name`, `usage`, `algorithm`, `state`, `protected`, `rotation_count`, `rotated_at`, `created_at`, `updated_at` and `srn`. |
 | <a name="output_secret_versions"></a> [secret\_versions](#output\_secret\_versions) | Map of created secret versions keyed like `secret_versions`, with `id`, `secret_id`, `revision`, `status`, `created_at`, `updated_at` and `srn`. |
 | <a name="output_secrets"></a> [secrets](#output\_secrets) | Map of created secrets keyed like `secrets`, with `id`, `name`, `path`, `status`, `version_count`, `created_at`, `updated_at` and `srn`. |
@@ -436,7 +436,7 @@ This module is provided "as is" without warranty of any kind. Always test in non
 
 [apache]: https://opensource.org/licenses/Apache-2.0
 [apache-shield]: https://img.shields.io/badge/License-Apache%202.0-blue.svg
-[terraform-badge]: https://img.shields.io/badge/Terraform-%3E%3D1.11-623CE4
+[terraform-badge]: https://img.shields.io/badge/Terraform-%3E%3D1.11.0-623CE4
 [terraform-url]: https://www.terraform.io
 [scaleway-badge]: https://img.shields.io/badge/Scaleway%20Provider-%3E%3D2.89-4f0599
 [scaleway-url]: https://registry.terraform.io/providers/scaleway/scaleway/

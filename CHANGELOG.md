@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 - Validate the module with Terraform and pin both toolchains
 - Regenerate the README input and output tables with terraform-docs
 - Rewrite input and output descriptions as single-line prose so they render on the Terraform Registry
+## [3.0.0] - 2026-11-01
 - Send secret payloads write-only through ephemeral secret_data, protect keys by default and use project_id
 
 BREAKING: v3.0.0.
@@ -26,6 +27,7 @@ BREAKING: v3.0.0.
   rotation period validation.
 
 See "Upgrading from v2 to v3" in the README.
+## [2.0.0] - 2026-10-31
 - Raise Scaleway provider to ~> 2.89, add key_encapsulation (ML-KEM) and new signing algorithms, secret types and srn outputs
 
 BREAKING: the Scaleway provider floor rises from ~> 2.86 to ~> 2.89
@@ -39,6 +41,7 @@ Upgrade notes:
 - Newly accepted: keys usage key_encapsulation (ml_kem_768, ml_kem_1024),
   signing algorithms rsa_pss_*_sha256, ec_secp256k1_sha256, ml_dsa_44/65/87,
   secret types certificate, key_value and ssh_key.
+## [1.3.2] - 2026-10-28
 - Fix validation and documentation gaps, warn on deletable keys and unversioned write-only data
 
 - Fix the project_name pattern (1-63 characters, a single non-letter is rejected).
@@ -51,6 +54,7 @@ Upgrade notes:
 No upgrade action needed. Setting unprotected = false on keys silences the new warning.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+## [1.3.1] - 2026-10-28
 - Key the pre-commit cache on mise.toml and .pre-commit-config.yaml
 
 The cache was keyed on the branch, so a branch kept tools installed by the previous mise, which the new one no longer puts on PATH (tofu not found). Keying it on the files that define the toolchain, as in scaleway-compute and scaleway-storage, starts a fresh cache whenever the toolchain changes and shares it across branches and tags.
@@ -74,6 +78,7 @@ spec-validate and spec-setup tasks, and the validate:specs CI job runs
 openspec validate --all --strict. The module contract is unchanged.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+## [1.3.0] - 2026-10-14
 - feat: add secret KMS key, HSM key protection and write-only secret data
 
 - secrets: add key_id (a key of var.keys or an existing Key Manager key)
@@ -85,7 +90,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 - Bump the scaleway provider constraint to ~> 2.86 (module and examples).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+## [1.2.0] - 2026-04-27
 - Adjust Scaleway provider constraint and disable unused local
+## [1.0.0] - 2025-12-22
 - Updates scaleway provider version
 
 Updates the scaleway provider version in the README to the latest released version.

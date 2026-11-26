@@ -2,6 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
+
 ## [3.0.1] - 2026-11-25
 - Validate the module with Terraform and pin both toolchains
 - Regenerate the README input and output tables with terraform-docs
@@ -115,4 +116,3 @@ This commit introduces a comprehensive refactor of the module, focusing on enhan
 - Introduces outputs for secrets, secret versions, and encryption keys.
 - first commit of template
 - Initial commit
-
